@@ -1,0 +1,608 @@
+.api-test-page {
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+
+  .page-header {
+    margin-bottom: 24px;
+
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 4px;
+    }
+
+    p {
+      font-size: 13px;
+      color: var(--text-tertiary);
+    }
+  }
+
+  .test-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+
+  .test-card {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    overflow: hidden;
+    transition: box-shadow 0.2s;
+
+    // 完整批改流程卡片占满整行（输入项较多）
+    &--flow {
+      grid-column: 1 / -1;
+    }
+
+    &:hover {
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+    }
+
+    &__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    &__title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--text-primary);
+
+      h2 {
+        font-size: 16px;
+        font-weight: 600;
+      }
+
+      svg {
+        color: var(--primary-500);
+      }
+    }
+
+    &__badge {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--primary-600);
+      background: var(--primary-50);
+      padding: 4px 10px;
+      border-radius: 20px;
+    }
+
+    &__body {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+  }
+
+  // 上传区域
+  .upload-area {
+    border: 2px dashed var(--border-color);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+
+    &:hover {
+      border-color: var(--primary-300);
+    }
+  }
+
+  .upload-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 40px 20px;
+    cursor: pointer;
+    color: var(--text-tertiary);
+    transition: color 0.2s;
+
+    &:hover {
+      color: var(--primary-500);
+    }
+
+    svg {
+      opacity: 0.5;
+    }
+
+    span {
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    small {
+      font-size: 12px;
+      opacity: 0.7;
+    }
+  }
+
+  .upload-preview {
+    position: relative;
+
+    img {
+      width: 100%;
+      max-height: 240px;
+      object-fit: contain;
+      background: var(--bg-secondary);
+      display: block;
+    }
+
+    &__info {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: var(--bg-secondary);
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+  }
+
+  .btn-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: var(--text-tertiary);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover {
+      background: var(--danger-50);
+      color: var(--danger-500);
+    }
+  }
+
+  // 输入组
+  .input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    textarea {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      font-size: 14px;
+      font-family: inherit;
+      color: var(--text-primary);
+      background: var(--bg-secondary);
+      resize: vertical;
+      transition: border-color 0.2s;
+
+      &:focus {
+        outline: none;
+        border-color: var(--primary-400);
+        box-shadow: 0 0 0 3px var(--primary-100);
+      }
+
+      &::placeholder {
+        color: var(--text-quaternary);
+      }
+    }
+  }
+
+  // 响应时间
+  .response-time {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    text-align: center;
+    padding: 4px;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+  }
+
+  // 测试结果
+  .test-result {
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+
+    &.success {
+      border-color: var(--success-200);
+      background: var(--success-50);
+    }
+
+    &.error {
+      border-color: var(--danger-200);
+      background: var(--danger-50);
+    }
+
+    &__header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 600;
+
+      .success & {
+        color: var(--success-600);
+      }
+
+      .error & {
+        color: var(--danger-600);
+      }
+    }
+
+    &__content {
+      display: flex;
+      gap: 10px;
+      padding: 12px 14px;
+      font-size: 13px;
+      color: var(--text-primary);
+      line-height: 1.7;
+      border-top: 1px solid var(--success-100);
+      background: var(--bg-primary);
+
+      svg {
+        flex-shrink: 0;
+        margin-top: 3px;
+        color: var(--success-500);
+      }
+
+      p {
+        word-break: break-all;
+        white-space: pre-wrap;
+      }
+    }
+
+    &__error {
+      display: flex;
+      gap: 10px;
+      padding: 12px 14px;
+      font-size: 13px;
+      color: var(--danger-600);
+      line-height: 1.6;
+      border-top: 1px solid var(--danger-100);
+      background: var(--bg-primary);
+
+      svg {
+        flex-shrink: 0;
+        margin-top: 2px;
+      }
+
+      p {
+        word-break: break-all;
+      }
+    }
+  }
+
+  // 通用按钮
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    &-primary {
+      background: var(--primary-500);
+      color: white;
+
+      &:hover:not(:disabled) {
+        background: var(--primary-600);
+      }
+    }
+
+    &-block {
+      width: 100%;
+    }
+  }
+
+  .spin {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  // 响应式
+  @media (max-width: 860px) {
+    padding: 16px;
+
+    .test-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .page-header h1 {
+      font-size: 20px;
+    }
+  }
+}
+
+// ============================================
+// 完整批改流程测试卡片
+// ============================================
+.flow-section {
+  margin-bottom: 14px;
+
+  &__label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+  }
+}
+
+.upload-placeholder--sm {
+  padding: 20px 16px;
+
+  svg {
+    width: 26px;
+    height: 26px;
+  }
+}
+
+.flow-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.input-group--xs {
+  width: 92px;
+  flex-shrink: 0;
+}
+
+.input-group--grow {
+  flex: 1;
+}
+
+.flow-rules {
+  margin: 14px 0;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+
+  &__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+
+    label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+  }
+}
+
+.flow-rule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
+  select {
+    width: 74px;
+    flex-shrink: 0;
+  }
+
+  input[type='text'] {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__score {
+    width: 76px;
+    flex-shrink: 0;
+  }
+}
+
+.flow-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+
+  input[type='checkbox'] {
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+  }
+}
+
+.flow-result {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+
+  &__score {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  &__number {
+    font-size: 40px;
+    font-weight: 600;
+    color: var(--primary-600, var(--primary-500));
+    line-height: 1;
+  }
+
+  &__total {
+    font-size: 14px;
+    color: var(--text-tertiary);
+  }
+
+  &__path {
+    margin-left: auto;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+
+    &--vision {
+      background: var(--success-50, rgba(22, 163, 74, 0.12));
+      color: var(--success-600, #16a34a);
+    }
+
+    &--ocr {
+      background: var(--warning-50, rgba(217, 119, 6, 0.12));
+      color: var(--warning-600, #d97706);
+    }
+  }
+
+  &__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+
+    span {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+  }
+
+  &__reason {
+    color: var(--warning-600, #d97706);
+  }
+
+  &__comment {
+    margin-top: 10px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-primary);
+  }
+
+  &__ocr {
+    margin-top: 12px;
+    font-size: 12px;
+
+    summary {
+      cursor: pointer;
+      color: var(--text-tertiary);
+    }
+
+    pre {
+      margin: 8px 0 0;
+      padding: 10px;
+      max-height: 220px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+  }
+}
+
+// 轻量按钮（用于"填入示例""添加规则"等次要操作）
+.btn--ghost {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+
+  &:hover:not(:disabled) {
+    border-color: var(--primary-500);
+    color: var(--primary-500);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+}
+
+// 评分依据
+.flow-result__reasoning {
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: var(--bg-tertiary);
+  border-left: 3px solid var(--color-info, #378add);
+  border-radius: 6px;
+
+  &-label {
+    margin-bottom: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 1px;
+    color: var(--text-primary);
+  }
+
+  p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.85;
+    letter-spacing: 0.3px;
+    text-align: justify;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+}
+
+// 本次测试请求的目标回显（endpoint + 模型），便于排查"测错了服务商/模型"
+.ds-request-target {
+  margin-top: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+  word-break: break-all;
+}

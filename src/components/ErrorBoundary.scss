@@ -1,0 +1,149 @@
+// ErrorBoundary 组件样式
+
+.error-boundary {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 24px;
+  background: var(--bg-primary, #f8fafc);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.error-container {
+  background: var(--bg-secondary, #ffffff);
+  border-radius: 16px;
+  padding: 48px;
+  max-width: 600px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--border-color, #e2e8f0);
+}
+
+// 错误图标
+.error-icon {
+  color: var(--danger-color, #ef4444);
+  margin-bottom: 24px;
+
+  svg {
+    display: inline-block;
+  }
+}
+
+// 错误标题
+.error-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-primary, #0f172a);
+  margin-bottom: 24px;
+}
+
+// 错误提示框
+.error-alert {
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  text-align: left;
+  font-size: 14px;
+
+  strong {
+    display: block;
+    margin-bottom: 8px;
+  }
+
+  ul {
+    margin: 8px 0;
+    padding-left: 20px;
+
+    li {
+      margin-bottom: 4px;
+    }
+  }
+
+  &.error-alert-danger {
+    background: var(--danger-bg, #fef2f2);
+    color: var(--danger-text, #991b1b);
+    border: 1px solid var(--danger-border, #fecaca);
+  }
+
+  &.error-alert-info {
+    background: var(--info-bg, #eff6ff);
+    color: var(--info-text, #1e40af);
+    border: 1px solid var(--info-border, #bfdbfe);
+  }
+}
+
+// 操作按钮
+.error-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 24px;
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    svg {
+      display: inline-block;
+      vertical-align: middle;
+    }
+
+    &.btn-primary {
+      background: var(--primary-color, #3b82f6);
+      color: white;
+      border: none;
+
+      &:hover {
+        background: var(--primary-hover, #2563eb);
+      }
+    }
+
+    &.btn-secondary {
+      background: transparent;
+      color: var(--text-secondary, #64748b);
+      border: 1px solid var(--border-color, #e2e8f0);
+
+      &:hover {
+        background: var(--bg-hover, #f1f5f9);
+      }
+    }
+  }
+}
+
+// 错误详情（开发模式）
+.error-details {
+  margin-top: 24px;
+  text-align: left;
+
+  summary {
+    cursor: pointer;
+    color: var(--text-secondary, #64748b);
+    font-size: 14px;
+    margin-bottom: 8px;
+
+    &:hover {
+      color: var(--text-primary, #0f172a);
+    }
+  }
+}
+
+.error-stack {
+  background: var(--bg-code, #f1f5f9);
+  padding: 16px;
+  border-radius: 8px;
+  overflow: auto;
+  max-height: 300px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-primary, #0f172a);
+  border: 1px solid var(--border-color, #e2e8f0);
+}

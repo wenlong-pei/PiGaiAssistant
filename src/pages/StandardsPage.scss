@@ -1,0 +1,441 @@
+// ============================================
+// 评分标准页面样式 - 毛玻璃效果
+// ============================================
+
+.standards-page {
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 24px;
+  }
+
+  &__title {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+
+  &__subtitle {
+    font-size: 14px;
+    color: var(--text-tertiary);
+  }
+
+  &__presets {
+    margin-bottom: 24px;
+
+    h3 {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+    }
+  }
+
+  &__list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 16px;
+  }
+
+  &__empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 60px 20px;
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border-radius: var(--radius-lg);
+    border: 1px dashed var(--glass-border);
+    box-shadow: var(--glass-shadow);
+
+    p {
+      margin: 16px 0 4px;
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    span {
+      font-size: 13px;
+      color: var(--text-tertiary);
+    }
+  }
+}
+
+// ============================================
+// 预设套标签 - 毛玻璃效果
+// ============================================
+.preset-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.preset-tab {
+  padding: 8px 16px;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+
+  &:hover {
+    border-color: var(--primary-300);
+    color: var(--primary-600);
+  }
+
+  &--active {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: var(--primary-400);
+    color: var(--primary-700);
+  }
+}
+
+// ============================================
+// 编辑器 - 毛玻璃效果
+// ============================================
+.standards-page__editor {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  margin-bottom: 24px;
+  overflow: hidden;
+}
+
+.editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: rgba(0, 0, 0, 0.03);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+
+  h3 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+}
+
+.editor-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.editor-body {
+  padding: 20px;
+}
+
+.editor-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.editor-field {
+  margin-bottom: 16px;
+
+  &--lg {
+    flex: 2;
+  }
+
+  // 行内勾选项（如"重视过程分"）
+  &--inline {
+    .checkbox-label {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--text-secondary);
+      cursor: pointer;
+      margin-bottom: 0;
+
+      input[type='checkbox'] {
+        width: 15px;
+        height: 15px;
+        margin-top: 2px;
+        flex-shrink: 0;
+        cursor: pointer;
+      }
+    }
+  }
+
+  label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+
+    svg {
+      color: var(--primary-500);
+      width: 14px;
+      height: 14px;
+    }
+  }
+
+  input, textarea {
+    width: 100%;
+  }
+
+  textarea {
+    resize: vertical;
+    min-height: 100px;
+  }
+}
+
+// ============================================
+// 评分规则
+// ============================================
+.scoring-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.scoring-rule {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+
+  select {
+    width: 80px;
+  }
+
+  input[type="text"] {
+    flex: 1;
+  }
+
+  input[type="number"] {
+    width: 80px;
+  }
+}
+
+// ============================================
+// 标准卡片 - 毛玻璃效果
+// ============================================
+.standard-card {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  overflow: hidden;
+  transition: all 0.3s;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.1);
+  }
+
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    cursor: pointer;
+    transition: background var(--transition-fast);
+
+    &:hover {
+      background: rgba(59, 130, 246, 0.04);
+    }
+  }
+
+  &__info {
+    h4 {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+    }
+  }
+
+  &__meta {
+    display: flex;
+    gap: 8px;
+  }
+
+  &__toggle {
+    color: var(--text-tertiary);
+  }
+
+  &__body {
+    padding: 0 20px 16px;
+    border-top: 1px solid rgba(0, 0, 0, 0.04);
+  }
+
+  &__section {
+    margin-top: 16px;
+
+    h5 {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-tertiary);
+      margin-bottom: 8px;
+    }
+
+    p {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+  }
+
+  &__actions {
+    display: flex;
+    gap: 4px;
+    padding: 12px 20px;
+    background: rgba(0, 0, 0, 0.03);
+    border-top: 1px solid rgba(0, 0, 0, 0.04);
+  }
+}
+
+// ============================================
+// 标签
+// ============================================
+.tag {
+  display: inline-flex;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 500;
+
+  &--primary {
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--primary-700);
+  }
+
+  &--success {
+    background: rgba(34, 197, 94, 0.1);
+    color: var(--success-600);
+  }
+}
+
+// ============================================
+// 关键词
+// ============================================
+.keywords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.keyword {
+  padding: 4px 10px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+// ============================================
+// 规则列表
+// ============================================
+.rules-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  li {
+    font-size: 13px;
+    color: var(--text-secondary);
+
+    span {
+      font-weight: 600;
+      margin-right: 8px;
+    }
+  }
+}
+
+// ============================================
+// 图标按钮
+// ============================================
+.btn-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  transition: all var(--transition-fast);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.06);
+    color: var(--text-primary);
+  }
+
+  &--danger:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--error-600);
+  }
+}
+
+// ============================================
+// 按钮样式
+// ============================================
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 500;
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+  padding: 10px 20px;
+  font-size: 14px;
+  cursor: pointer;
+  border: none;
+
+  &--primary {
+    background: var(--gradient-primary);
+    color: white;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+
+    &:hover {
+      background: var(--gradient-primary-hover);
+      transform: translateY(-1px);
+    }
+  }
+
+  &--secondary {
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    color: var(--text-primary);
+    border: 1px solid var(--glass-border);
+
+    &:hover {
+      background: rgba(59, 130, 246, 0.08);
+      border-color: var(--primary-300);
+    }
+  }
+
+  &--sm {
+    padding: 8px 14px;
+    font-size: 13px;
+    border-radius: var(--radius-sm);
+  }
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+}

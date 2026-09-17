@@ -1,0 +1,151 @@
+// 批改历史记录页面样式
+
+.grading-history-page {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+
+  // 页面标题
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+
+    h1 {
+      font-size: 28px;
+      font-weight: 600;
+      color: #1a202c;
+    }
+  }
+
+  // 统计信息面板
+  .statistics-panel {
+    padding: 20px;
+    margin-bottom: 24px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+
+    .MuiTypography-root {
+      color: white;
+    }
+
+    .MuiTypography-h6 {
+      font-weight: 600;
+    }
+  }
+
+  // 筛选面板
+  .filter-panel {
+    padding: 20px;
+    margin-bottom: 24px;
+    background-color: #f7fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+  }
+
+  // 操作栏
+  .action-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    gap: 16px;
+
+    @media (max-width: 768px) {
+      flex-direction: column;
+      align-items: stretch;
+    }
+  }
+
+  // 加载容器
+  .loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 80px;
+    gap: 16px;
+  }
+
+  // 空数据容器
+  .empty-container {
+    padding: 80px;
+    text-align: center;
+    background-color: #f7fafc;
+    border: 2px dashed #e2e8f0;
+    border-radius: 8px;
+  }
+
+  // 历史表格
+  .history-table {
+    .MuiTableHead-root {
+      background-color: #f7fafc;
+
+      .MuiTableCell-head {
+        font-weight: 600;
+        color: #4a5568;
+      }
+    }
+
+    .MuiTableBody-root {
+      .MuiTableRow-root {
+        transition: background-color 0.2s;
+
+        &:hover {
+          background-color: #f7fafc;
+        }
+
+        &.compare-selected {
+          background-color: #ebf8ff;
+        }
+      }
+    }
+  }
+
+  // 分页容器
+  .pagination-container {
+    display: flex;
+    justify-content: center;
+    padding: 24px 0;
+  }
+}
+
+// 深色主题
+[data-theme="dark"] {
+  .grading-history-page {
+    .page-header h1 {
+      color: #f7fafc;
+    }
+
+    .statistics-panel {
+      background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+    }
+
+    .filter-panel {
+      background-color: #2d3748;
+      border-color: #4a5568;
+    }
+
+    .empty-container {
+      background-color: #2d3748;
+      border-color: #4a5568;
+    }
+
+    .history-table {
+      .MuiTableHead-root {
+        background-color: #2d3748;
+      }
+
+      .MuiTableBody-root .MuiTableRow-root {
+        &:hover {
+          background-color: #2d3748;
+        }
+
+        &.compare-selected {
+          background-color: #2a4365;
+        }
+      }
+    }
+  }
+}

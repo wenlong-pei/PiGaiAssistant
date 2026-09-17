@@ -1,0 +1,497 @@
+// ============================================
+// 全局样式 - 简洁统一设计
+// 支持亮色/暗色主题切换
+// ============================================
+
+:root {
+  // 主题色 - 蓝绿色调
+  --primary-50: #ecfeff;
+  --primary-100: #cffafe;
+  --primary-200: #a5f3fc;
+  --primary-300: #67e8f9;
+  --primary-400: #22d3ee;
+  --primary-500: #06b6d4;
+  --primary-600: #0891b2;
+  --primary-700: #0e7490;
+  --primary-800: #155e75;
+  --primary-900: #164e63;
+
+  // 蓝色辅助
+  --blue-400: #60a5fa;
+  --blue-500: #3b82f6;
+  --blue-600: #2563eb;
+
+  // 渐变
+  --gradient-primary: linear-gradient(135deg, #0891b2 0%, #3b82f6 100%);
+  --gradient-primary-hover: linear-gradient(135deg, #0e7490 0%, #2563eb 100%);
+  --gradient-bg: linear-gradient(135deg, #f0fdfa 0%, #eff6ff 100%);
+
+  // 毛玻璃效果
+  --glass-bg: rgba(255, 255, 255, 0.75);
+  --glass-bg-hover: rgba(255, 255, 255, 0.9);
+  --glass-blur: blur(16px);
+  --glass-border: rgba(255, 255, 255, 0.5);
+  --glass-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  --glass-shadow-hover: 0 8px 32px rgba(0, 0, 0, 0.1);
+
+  // 背景色
+  --bg-primary: #f8fafc;
+  --bg-secondary: #f1f5f9;
+  --bg-tertiary: #e2e8f0;
+  --bg-app: var(--gradient-bg);
+
+  // 文字色
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #94a3b8;
+  --text-quaternary: #cbd5e1;
+
+  // 边框色
+  --border-color: rgba(0, 0, 0, 0.08);
+  --border-color-hover: rgba(0, 0, 0, 0.15);
+
+  // 状态色
+  --success-50: #f0fdf4;
+  --success-100: #dcfce7;
+  --success-500: #22c55e;
+  --success-600: #16a34a;
+  --error-50: #fef2f2;
+  --error-100: #fee2e2;
+  --error-200: #fecaca;
+  --error-500: #ef4444;
+  --error-600: #dc2626;
+  --warning-50: #fffbeb;
+  --warning-100: #fef3c7;
+  --warning-200: #fde68a;
+  --warning-500: #f59e0b;
+  --warning-600: #d97706;
+  --info-50: #eff6ff;
+  --info-500: #3b82f6;
+  --info-600: #2563eb;
+  --danger-50: var(--error-50);
+  --danger-100: var(--error-100);
+  --danger-200: var(--error-200);
+  --danger-500: var(--error-500);
+  --danger-600: var(--error-600);
+
+  // 渐变
+  --gradient-danger: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+
+  // 中性色
+  --gray-50: #f8fafc;
+  --gray-100: #f1f5f9;
+  --gray-200: #e2e8f0;
+  --gray-300: #cbd5e1;
+  --gray-400: #94a3b8;
+  --gray-500: #64748b;
+  --gray-600: #475569;
+  --gray-700: #334155;
+  --gray-800: #1e293b;
+  --gray-900: #0f172a;
+
+  // 卡片与交互背景（CoordinateGradingPage 等页面依赖；此前未定义导致卡片背景透明、hover 失效）
+  --bg-card: #ffffff;
+  --bg-hover: #f1f5f9;
+  --primary-color-10: color-mix(in srgb, var(--primary-color, #1976d2) 10%, transparent);
+  --primary-color-5: color-mix(in srgb, var(--primary-color, #1976d2) 5%, transparent);
+
+  // 圆角
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-2xl: 24px;
+
+  // 字体
+  --font-sans: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+
+  // 字体大小
+  --font-size-base: 16px;
+  --font-size-small: 12px;
+  --font-size-medium: 16px;
+  --font-size-large: 20px;
+  --font-size-xlarge: 24px;
+  --font-size-sm: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+
+  // 阴影
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+
+  // 过渡
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+// 深色主题
+.dark-theme {
+  --primary-50: #164e63;
+  --primary-100: #155e75;
+  --primary-200: #0e7490;
+  --primary-300: #0891b2;
+  --primary-400: #22d3ee;
+  --primary-500: #67e8f9;
+  --primary-600: #a5f3fc;
+  --primary-700: #cffafe;
+  --primary-800: #ecfeff;
+  --primary-900: #f0fdfa;
+
+  --gradient-primary: linear-gradient(135deg, #22d3ee 0%, #60a5fa 100%);
+  --gradient-primary-hover: linear-gradient(135deg, #67e8f9 0%, #93c5fd 100%);
+  --gradient-bg: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+
+  --glass-bg: rgba(30, 41, 59, 0.8);
+  --glass-bg-hover: rgba(51, 65, 85, 0.9);
+  --glass-blur: blur(16px);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+  --glass-shadow-hover: 0 8px 32px rgba(0, 0, 0, 0.4);
+
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-tertiary: #334155;
+  --bg-app: var(--gradient-bg);
+
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-tertiary: #94a3b8;
+  --text-quaternary: #64748b;
+
+  --border-color: rgba(255, 255, 255, 0.1);
+  --border-color-hover: rgba(255, 255, 255, 0.2);
+
+  --success-50: rgba(34, 197, 94, 0.15);
+  --success-100: rgba(34, 197, 94, 0.25);
+  --success-500: #4ade80;
+  --success-600: #22c55e;
+  --error-50: rgba(239, 68, 68, 0.15);
+  --error-100: rgba(239, 68, 68, 0.25);
+  --error-200: rgba(239, 68, 68, 0.35);
+  --error-500: #f87171;
+  --error-600: #ef4444;
+  --warning-50: rgba(245, 158, 11, 0.15);
+  --warning-100: rgba(245, 158, 11, 0.25);
+  --warning-200: rgba(245, 158, 11, 0.35);
+  --warning-500: #fbbf24;
+  --warning-600: #f59e0b;
+  --info-50: rgba(59, 130, 246, 0.15);
+  --info-500: #60a5fa;
+  --info-600: #3b82f6;
+  --danger-50: var(--error-50);
+  --danger-100: var(--error-100);
+  --danger-200: var(--error-200);
+  --danger-500: var(--error-500);
+  --danger-600: var(--error-600);
+
+  --gradient-danger: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+
+  --gray-50: #0f172a;
+  --gray-100: #1e293b;
+  --gray-200: #334155;
+  --gray-300: #475569;
+  --gray-400: #64748b;
+  --gray-500: #94a3b8;
+  --gray-600: #cbd5e1;
+  --gray-700: #e2e8f0;
+  --gray-800: #f1f5f9;
+  --gray-900: #f8fafc;
+
+  --bg-card: #1e293b;
+  --bg-hover: #334155;
+  --primary-color-10: color-mix(in srgb, var(--primary-color, #90caf9) 12%, transparent);
+  --primary-color-5: color-mix(in srgb, var(--primary-color, #90caf9) 6%, transparent);
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4), 0 4px 6px -4px rgb(0 0 0 / 0.3);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.4), 0 8px 10px -6px rgb(0 0 0 / 0.3);
+
+  // 字体大小（深色主题下保持一致）
+  --font-size-base: 16px;
+  --font-size-small: 12px;
+  --font-size-medium: 16px;
+  --font-size-large: 20px;
+  --font-size-xlarge: 24px;
+  
+  // 主题色（用于非 MUI 组件）
+  --primary-color: #1976d2;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: var(--font-size-base, 16px);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: var(--font-size-medium, 16px);
+  line-height: 1.6;
+  overflow: hidden;
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+#root {
+  width: 100vw;
+  height: 100vh;
+}
+
+// ============================================
+// 滚动条美化
+// ============================================
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+
+  &:hover {
+    background: var(--border-color-hover);
+  }
+}
+
+// 选中文本样式
+::selection {
+  background: var(--primary-200);
+  color: var(--primary-900);
+}
+
+// 焦点样式
+:focus-visible {
+  outline: 2px solid var(--primary-500);
+  outline-offset: 2px;
+}
+
+// ============================================
+// 按钮基础样式
+// ============================================
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  transition: all var(--transition-fast);
+  font-size: var(--font-size-md);
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+}
+
+input, textarea, select {
+  font-family: inherit;
+  font-size: inherit;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  width: 100%;
+
+  &:focus {
+    border-color: var(--primary-500);
+    box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.15);
+    outline: none;
+  }
+
+  &::placeholder {
+    color: var(--text-tertiary);
+  }
+}
+
+// ============================================
+// 链接样式
+// ============================================
+a {
+  color: var(--primary-600);
+  text-decoration: none;
+
+  &:hover {
+    color: var(--primary-700);
+  }
+}
+
+// 图片默认样式
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+// ============================================
+// 动画关键帧
+// ============================================
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+// ============================================
+// 工具类
+// ============================================
+.animate-fade-in {
+  animation: fadeIn var(--transition-normal) forwards;
+}
+
+.animate-slide-up {
+  animation: slideUp var(--transition-normal) forwards;
+}
+
+.animate-slide-down {
+  animation: slideDown var(--transition-normal) forwards;
+}
+
+.animate-pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+// ============================================
+// 字体大小工具类（通过根元素 font-size + 常用元素缩放）
+// ============================================
+:root {
+  --font-base: 14px;
+}
+
+.font-size-small {
+  --font-base: 12px;
+}
+
+.font-size-medium {
+  --font-base: 14px;
+}
+
+.font-size-large {
+  --font-base: 16px;
+}
+
+html {
+  font-size: var(--font-base) !important;
+}
+
+// 常用文本元素使用 rem 单位以响应字体大小变化
+.setting-item__info h4 { font-size: 1.07rem !important; }    // ~15px @ base=14
+.setting-item__info p { font-size: 0.93rem !important; }     // ~13px
+.settings-nav__item { font-size: 1rem !important; }
+.settings-section h2,
+.subsection-title { font-size: 1.43rem !important; }        // ~20px
+.section-desc,
+.radio-desc,
+.shortcut-desc,
+.help-card p,
+.help-card li,
+.provider-field label { font-size: 0.93rem !important; }
+.radio-label,
+.help-card h4,
+.provider-card__title h4 { font-size: 1.14rem !important; }   // ~16px
+.ai-global-param__info span { font-size: 1rem !important; }
+.settings-page__title { font-size: 2rem !important; }
+.settings-page__subtitle { font-size: 1rem !important; }
+.shortcut-key { font-size: 0.93rem !important; }
+.param-value { font-size: 1rem !important; }
+
+// 表单和按钮
+input, select, textarea, button, .btn { font-size: 1rem !important; }
+.btn--sm { font-size: 0.93rem !important; }
+
+// 卡片标题
+.provider-card__badge { font-size: 0.79rem !important; }
+.api-warning p { font-size: 1rem !important; }
+.provider-add__label { font-size: 0.93rem !important; }
+
+// ============================================
+// 高对比度模式
+// ============================================
+.high-contrast {
+  --text-primary: #000000;
+  --text-secondary: #262626;
+  --bg-primary: #FFFFFF;
+  --bg-secondary: #F5F5F5;
+  --bg-tertiary: #E5E5E5;
+  --border-color: #000000;
+  --border-color-hover: #262626;
+  
+  // 增强边框和阴影以提高可读性
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.2);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.2);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.3), 0 4px 6px -4px rgb(0 0 0 / 0.2);
+  
+  // 按钮和输入框边框加粗
+  button, input, select, textarea {
+    border-width: 2px !important;
+  }
+}
+
+// 深色模式下的高对比度
+.dark-theme.high-contrast {
+  --text-primary: #FFFFFF;
+  --text-secondary: #E0E0E0;
+  --bg-primary: #000000;
+  --bg-secondary: #1A1A1A;
+  --bg-tertiary: #333333;
+  --border-color: #FFFFFF;
+  --border-color-hover: #E0E0E0;
+}
+

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>智学网批改模拟页</title>
+<style>
+  body { font-family: "Microsoft YaHei", sans-serif; margin: 0; padding: 20px; background: #f5f6fa; }
+  .card { background: #fff; border-radius: 8px; padding: 20px; max-width: 860px; margin: 0 auto; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+  .topic { font-size: 16px; color: #333; margin-bottom: 12px; }
+  .img-block { border: 1px dashed #ccc; padding: 10px; margin-bottom: 12px; min-height: 120px; display: flex; align-items: center; justify-content: center; }
+  .img-block img { max-width: 100%; max-height: 200px; }
+  .score-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .score-row input { width: 120px; height: 34px; font-size: 16px; padding: 0 8px; border: 1px solid #aaa; border-radius: 4px; }
+  button { height: 36px; padding: 0 18px; font-size: 14px; border: none; border-radius: 4px; cursor: pointer; }
+  #bnt_save { background: #2f7bf6; color: #fff; }
+  button.next { background: #e8e8e8; color: #333; }
+  .log { margin-top: 16px; font-size: 12px; color: #666; background: #fafafa; padding: 10px; border-radius: 4px; max-height: 200px; overflow-y: auto; }
+  .disabled { opacity: .4; pointer-events: none; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="topic">第 <span id="qIndex">1</span> / 3 题：<span id="qTitle">阅读短文，回答问题</span></div>
+  <div class="img-block" name="topicImg">
+    <img id="answerImg" class="answer-img" alt="学生答题图片" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==">
+  </div>
+  <div class="score-row">
+    <label>得分：</label>
+    <input id="inputScore" type="number" class="topictxt_input" placeholder="请输入分数">
+    <button id="bnt_save">提交分数</button>
+    <button class="next-btn" id="nextBtn">下一题</button>
+  </div>
+  <div class="log" id="log"></div>
+</div>
+
+<script>
+  // 页面状态记录（供自动化断言使用）
+  window.__g = {
+    current: 1,
+    total: 3,
+    submitted: [],        // [{ score, at }]
+    submitClicks: 0,
+    nextClicks: 0,
+    lastScoreInputValue: '',
+    lastSubmittedAt: 0,
+    autoAdvance: false    // 提交后是否自动进入下一题（模拟真实平台行为）
+  };
+
+  function log(msg) {
+    var el = document.getElementById('log');
+    var line = document.createElement('div');
+    line.textContent = '[' + new Date().toISOString().slice(11, 19) + '] ' + msg;
+    el.appendChild(line);
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function setQuestion(n) {
+    window.__g.current = n;
+    document.getElementById('qIndex').textContent = n;
+    document.getElementById('qTitle').textContent = '第 ' + n + ' 题：阅读短文，回答问题';
+    var input = document.getElementById('inputScore');
+    input.value = '';
+    // 变更答题图（不同题用不同颜色占位图，仍是 data URL）
+    var colors = ['f00', '0f0', '00f'];
+    var color = colors[(n - 1) % colors.length];
+    document.getElementById('answerImg').src =
+      'data:image/svg+xml;base64,' + btoa(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="60"><rect width="100" height="60" fill="' + color + '"/><text x="10" y="30" font-size="12" fill="#fff">Q' + n + '</text></svg>');
+    log('切换到第 ' + n + ' 题');
+  }
+
+  document.getElementById('inputScore').addEventListener('input', function (e) {
+    window.__g.lastScoreInputValue = e.target.value;
+  });
+
+  document.getElementById('bnt_save').addEventListener('click', function () {
+    var input = document.getElementById('inputScore');
+    var score = input.value;
+    window.__g.submitClicks++;
+    window.__g.lastSubmittedAt = Date.now();
+    window.__g.submitted.push({ score: score, at: window.__g.lastSubmittedAt });
+    log('提交分数按钮被点击，分数=' + score + '（累计 ' + window.__g.submitClicks + ' 次）');
+    if (window.__g.autoAdvance && window.__g.current < window.__g.total) {
+      setQuestion(window.__g.current + 1);
+    }
+  });
+
+  document.getElementById('nextBtn').addEventListener('click', function () {
+    window.__g.nextClicks++;
+    log('下一题按钮被点击（累计 ' + window.__g.nextClicks + ' 次）');
+    if (window.__g.current < window.__g.total) {
+      setQuestion(window.__g.current + 1);
+    } else {
+      log('已经是最后一题，不切换');
+    }
+  });
+
+  // 模拟页面在提交前可能出现的弹窗（仅当 URL 带 popup 参数时启用）
+  if (location.search.indexOf('popup=1') >= 0) {
+    window.__realClick = HTMLElement.prototype.click;
+    HTMLElement.prototype.click = function () {
+      if (this.id === 'bnt_save') {
+        log('（模拟）提交前弹窗拦截，点击被吞掉');
+        return;
+      }
+      return window.__realClick.call(this);
+    };
+  }
+
+  // 模拟输入框被禁用（仅当 URL 带 disabled-input 参数时启用）
+  if (location.search.indexOf('disabled-input=1') >= 0) {
+    document.getElementById('inputScore').disabled = true;
+  }
+
+  log('Mock 页面加载完成，共 ' + window.__g.total + ' 题');
+</script>
+</body>
+</html>

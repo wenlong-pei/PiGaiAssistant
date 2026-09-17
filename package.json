@@ -1,0 +1,132 @@
+{
+  "name": "pilaoban-grading-tool",
+  "version": "2.6.3",
+  "description": "皮老板智能阅卷工具 - AI智能评分",
+  "main": "dist/main/main.js",
+  "author": "皮老板",
+  "license": "MIT",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:main\"",
+    "dev:renderer": "vite",
+    "dev:main": "wait-on http://localhost:5173 && electron .",
+    "build": "npm run build:renderer && npm run build:main",
+    "build:renderer": "vite build",
+    "build:main": "tsc -p tsconfig.main.json",
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:green": "npm run build && electron-builder --win && npm run pack:green",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:exec": "vitest run --config test/execution/vitest.exec.config.ts",
+    "pack:green": "cd release && 7z a -r \"皮老板智能阅卷工具-v$(node -p \"require('../package.json').version\")-绿色免安装版.zip\" win-unpacked/ || zip -r \"皮老板智能阅卷工具-v$(node -p \"require('../package.json').version\")-绿色免安装版.zip\" win-unpacked/"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^9.1.1",
+    "@mui/material": "^9.1.2",
+    "axios": "^1.16.1",
+    "dayjs": "^1.11.10",
+    "driver.js": "^1.6.0",
+    "electron-store": "^8.1.0",
+    "electron-updater": "^6.8.3",
+    "exceljs": "^4.4.0",
+    "form-data": "^4.0.5",
+    "framer-motion": "^10.16.5",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
+    "lucide-react": "^0.294.0",
+    "playwright": "^1.60.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-hot-toast": "^2.4.1",
+    "react-router-dom": "^6.20.0",
+    "sql.js": "^1.14.1",
+    "uuid": "^9.0.1",
+    "xlsx": "^0.18.5",
+    "zustand": "^4.4.7"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^20.10.0",
+    "@types/react": "^18.2.39",
+    "@types/react-dom": "^18.2.17",
+    "@types/uuid": "^9.0.7",
+    "@vitejs/plugin-react": "^4.7.0",
+    "concurrently": "^8.2.2",
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1",
+    "jsdom": "^29.1.1",
+    "sass": "^1.69.5",
+    "typescript": "^5.3.2",
+    "vite": "^5.0.4",
+    "vitest": "^4.1.7",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.pilaoban.grading-tool",
+    "productName": "皮老板智能阅卷工具",
+    "copyright": "Copyright © 2026 皮老板",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "assets/**/*",
+      "config/**/*",
+      "package.json"
+    ],
+    "extraFiles": [
+      "README.md",
+      "LICENSE"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "dist/main/**/*",
+      "node_modules/playwright/**/*",
+      "node_modules/playwright-core/**/*"
+    ],
+    "publish": {
+      "provider": "github",
+      "owner": "wenlong-pei",
+      "repo": "IMA"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "signAndEditExecutable": false,
+      "verifyUpdateCodeSignature": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "皮老板智能阅卷工具",
+      "artifactName": "皮老板智能阅卷工具-Setup-${version}.exe",
+      "unicode": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "portable": {
+      "artifactName": "皮老板智能阅卷工具-${version}-绿色版.exe",
+      "unpackDirName": "皮老板智能阅卷工具"
+    }
+  }
+}

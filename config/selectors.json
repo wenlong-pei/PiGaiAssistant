@@ -1,0 +1,65 @@
+{
+  "name": "皮老板智能阅卷工具 - DOM选择器配置",
+  "version": "2.0.0",
+  "description": "各平台阅卷页面的 DOM 选择器配置",
+  "platforms": {
+    "zhixue": {
+      "name": "智学网",
+      "domains": [
+        "zhixue.com",
+        "zhixueyun.com"
+      ],
+      "selectors": {
+        "answerImages": {
+          "description": "答题图片选择器",
+          "legacy": "div[name=\"topicImg\"] img",
+          "modern": "div.divBlock",
+          "fallback": [
+            "img[class*=\"answer\"]",
+            "img[class*=\"student\"]"
+          ]
+        },
+        "scoreInput": {
+          "description": "分数输入框选择器",
+          "legacy": "input[type=\"number\"]",
+          "placeholder": "input[placeholder*=\"分\"]",
+          "modern": "input.topictxt_input",
+          "allModern": "#txt_marking_all"
+        },
+        "submitButton": {
+          "description": "提交按钮选择器",
+          "text": "提交分数",
+          "modern": "#bnt_save",
+          "fallback": [
+            "button",
+            "//button[contains(text(),'提交')]",
+            "//button[contains(text(),'保存')]"
+          ]
+        },
+        "nextButton": {
+          "description": "下一题按钮选择器",
+          "text": "下一题",
+          "fallback": [
+            "//button[contains(text(),'下一题')]",
+            "//a[contains(text(),'下一题')]"
+          ]
+        },
+        "questionTitle": {
+          "description": "题目标题选择器",
+          "selectors": [
+            ".question-title",
+            ".topic-title",
+            "[class*=\"title\"]",
+            "h3",
+            "h4"
+          ]
+        }
+      }
+    }
+  },
+  "metadata": {
+    "lastUpdated": "2026-05-31",
+    "author": "皮老板",
+    "usage": "用于Playwright CSS选择器，不支持jQuery伪类如 :contains()，请使用标准CSS或XPath"
+  }
+}

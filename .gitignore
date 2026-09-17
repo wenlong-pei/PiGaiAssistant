@@ -1,0 +1,86 @@
+# 依赖
+node_modules/
+
+# 构建产物
+dist/
+dist_renderer/
+dist_main/
+
+# 打包产物
+release/
+out/
+
+# Electron Builder
+builder-debug.yml
+builder-effective-config.yaml
+
+# 环境变量
+.env
+.env.local
+.env.*.local
+
+# 日志
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 上传文件
+.uploads/
+
+# 临时文件
+*.tmp
+*.bak
+*.cache
+
+# npm cache (local)
+.npm-cache/
+
+# Archive files
+*.tar
+*.tar.gz
+
+# ===== 打包输出目录（含 exe/asar，体积巨大，不入库）=====
+release-build/
+release-build*/
+release-v2.2.1-backup/
+
+# ===== 本地快照/备份（含 localStorage 数据库快照，可能带凭据，不入库）=====
+backup-*/
+!backup/.gitkeep
+
+# ===== 工作区内部数据（记忆、审计报告等，不入库）=====
+.workbuddy/
+.security/
+
+# ===== 内部文档与报告（仅代码入库）=====
+docs/
+deliverables/
+qa-results/
+auto-grading-research/
+security-audit-report.md
+CODE_REVIEW.md
+IMPROVEMENTS_SUMMARY.md
+bugfix-log-platform-overview.md
+
+# ===== 类型增量构建缓存 =====
+*.tsbuildinfo
+
+# ===== 数据库/凭据载体 =====
+*.ldb
+*.old
+secure-store.json
+grading-history.enc
+Local-Storage/

@@ -1,0 +1,35 @@
+[
+  {
+    "id": "示例-题1-样本1",
+    "expectedScore": 8,
+    "text": "解：设方程为 x + 2 = 5，移项得 x = 3。经检验 x = 3 是原方程的解。",
+    "standard": {
+      "name": "解一元一次方程",
+      "totalScore": 10,
+      "referenceAnswer": "x = 3",
+      "scoringRules": "列出正确方程 +3 分；移项步骤正确 +4 分；最终答案正确 +3 分"
+    }
+  },
+  {
+    "id": "示例-题1-样本2",
+    "expectedScore": 5,
+    "text": "x = 3",
+    "standard": {
+      "name": "解一元一次方程",
+      "totalScore": 10,
+      "referenceAnswer": "x = 3",
+      "scoringRules": "列出正确方程 +3 分；移项步骤正确 +4 分；最终答案正确 +3 分"
+    }
+  },
+  {
+    "id": "示例-题2-样本1",
+    "expectedScore": 10,
+    "text": "本文围绕故乡的思念展开，语言优美，运用了比喻与排比的修辞手法，情感真挚，结构完整。",
+    "standard": {
+      "name": "作文片段赏析",
+      "totalScore": 10,
+      "referenceAnswer": "要点：修辞、情感、结构",
+      "scoringRules": "点明修辞 +4 分；情感分析 +3 分；结构评价 +3 分"
+    }
+  }
+]
