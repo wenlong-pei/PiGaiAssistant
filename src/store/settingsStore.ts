@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { v4 as uuidv4 } from 'uuid'
 import type { AppSettings, AiProvider, ThemeCustomConfig } from '@/types'
+import { createResilientPersistStorage } from './resilientStorage'
 
 interface SettingsState {
   settings: AppSettings
@@ -341,6 +342,34 @@ async function syncProvidersToMain(
   }
 }
 
+/**
+ * 「瘦身重试」：配额写失败时丢掉「示例空白卡图片」（base64）再写一次。
+ *
+ * 只在**真正写失败时**触发 —— 正常路径仍然完整保留 `blankSampleImage`，
+ * 因此不改变持久化字段集合；代价是配额彻底满时宁可丢示例图，也不丢整套设置。
+ */
+function shrinkSettingsPayload(rawJson: string): string | null {
+  try {
+    const payload = JSON.parse(rawJson) as { state?: { settings?: AppSettings } }
+    const settings = payload?.state?.settings
+    if (!settings || typeof settings !== 'object') return null
+    if (!settings.blankSampleImage) return null
+    payload.state!.settings = { ...settings, blankSampleImage: '' }
+    return JSON.stringify(payload)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 容错存储（8.4）：设置里含示例空白卡图片（base64），
+ * 配额满时 `setItem` 会同步抛错，把"改设置/切主题"这类操作整个打断。
+ */
+const { storage: settingsStorage } = createResilientPersistStorage<SettingsState>({
+  label: 'settingsStore',
+  shrink: shrinkSettingsPayload,
+})
+
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
@@ -635,6 +664,10 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'grading-settings',
+      // 容错存储：写入失败（配额满）只降级 + 记错误，绝不把异常抛给调用方
+      storage: settingsStorage,
+      // 持久化字段与旧版本完全一致（身份映射）；图片仅在写失败时由 shrink 兜底剥离
+      partialize: (state): SettingsState => ({ ...state }),
       merge: (persistedState, currentState) => {
         const persisted = (persistedState && typeof persistedState === 'object')
           ? persistedState as Partial<SettingsState>

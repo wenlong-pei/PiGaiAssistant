@@ -363,7 +363,12 @@ function AiConfigSection({ formData, setFormData, markChanged }: SectionProps) {
         model: provider.model,
         prompt: 'Hello',
         temperature: 0.7,
-        maxTokens: 10,
+        // 修复：此前只给 10 个 token，且从不透传思考开关。DeepSeek 服务端默认开启思考模式，
+        // 10 个 token 会被思维链耗尽、正文为空，报错却让用户去"关闭思考模式"（他其实早已关掉）。
+        // 这里复用设置里的 maxTokens（默认 4000）作为兜底，并把思考开关一并透传给主进程。
+        maxTokens: settings.maxTokens || 4000,
+        thinkingEnabled: provider.thinkingEnabled,
+        reasoningEffort: provider.reasoningEffort,
       })
 
       if (result.success) {

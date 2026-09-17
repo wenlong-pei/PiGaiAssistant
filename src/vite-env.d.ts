@@ -49,6 +49,9 @@ interface ElectronAPI {
     prompt: string
     temperature: number
     maxTokens: number
+    // 思考模式（DeepSeek）：需从渲染层透传到主进程，否则界面上关闭思考对测试路径无效
+    thinkingEnabled?: boolean
+    reasoningEffort?: 'low' | 'high' | 'max'
   }) => Promise<{ success?: boolean; content?: string; error?: string; time?: number }>
   getBotSettings: () => Promise<any>
   configurePaddleOCR: (config: any) => void

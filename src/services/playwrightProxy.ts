@@ -54,6 +54,18 @@ interface RegionResult {
   nextButton?: { x: number; y: number }
 }
 
+/**
+ * 坐标型动作（点击 / 输入）的返回契约，与主进程 `BrowserService.CoordinateActionResult` 对齐。
+ *
+ * `true` —— 已成功派发（输入场景下还通过了「落值校验」）；
+ * `{ error }` —— 失败，带可直接展示的原因。
+ *
+ * 注意：**不再用 `false` 表示失败**。旧契约下失败返回 `false`，而调用方只检查
+ * `{ error }` 对象 → `false` 被静默忽略 → 分数没点中/没输进去仍继续提交并记 completed。
+ * 类型定义在此本地声明，避免渲染层直接依赖 `electron/` 的类型。
+ */
+export type CoordinateActionResult = true | { error: string }
+
 interface BotProxy {
   // 浏览器控制
   launchBrowser: (headless: boolean) => Promise<BrowserLaunchResult>
@@ -66,8 +78,8 @@ interface BotProxy {
   captureAnswerAuto: () => Promise<string | null> // 自动获取图片
   captureByCoordinate: (x: number, y: number, width: number, height: number) => Promise<string | null> // 坐标截图
   captureFullPage: () => Promise<string | null> // 全页面截图（用于选区）
-  clickAt: (x: number, y: number) => Promise<boolean> // 坐标点击
-  typeAt: (x: number, y: number, text: string) => Promise<boolean> // 坐标输入
+  clickAt: (x: number, y: number) => Promise<CoordinateActionResult> // 坐标点击（文档坐标 → 主进程换算为视口坐标）
+  typeAt: (x: number, y: number, text: string) => Promise<CoordinateActionResult> // 坐标输入（含清空 + 落值校验）
   recognizeText: (imageBase64: string) => Promise<OCRResult>
   gradeWithAI: (text: string, correctionHistory?: any[]) => Promise<GradeResult>
   // 图像直评（首选路径）：直接把截图交给视觉模型识别并评分
@@ -295,12 +307,12 @@ function createBotProxy(): BotProxy {
       await new Promise(r => setTimeout(r, 500))
       return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
     },
-    clickAt: async (x: number, y: number) => {
+    clickAt: async (x: number, y: number): Promise<CoordinateActionResult> => {
       console.log('[Mock] 坐标点击', { x, y })
       await new Promise(r => setTimeout(r, 200))
       return true
     },
-    typeAt: async (x: number, y: number, text: string) => {
+    typeAt: async (x: number, y: number, text: string): Promise<CoordinateActionResult> => {
       console.log('[Mock] 坐标输入', { x, y, text })
       await new Promise(r => setTimeout(r, 300))
       return true

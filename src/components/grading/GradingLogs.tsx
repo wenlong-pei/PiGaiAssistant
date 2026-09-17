@@ -51,9 +51,18 @@ export default function GradingLogs() {
   // 获取过滤后的日志
   const filteredLogs = getFilteredLogs()
 
-  // 自动滚动到最新日志
+  // 自动滚动到最新日志：
+  // 只滚动日志列表容器自身（.logs-list），绝不使用 scrollIntoView。
+  // 原因：当容器本身不可滚动时，scrollIntoView 会向上冒泡，去滚动最近的「可滚动祖先」
+  // （.main-panel 或整个文档），于是每来一条日志就把整页顶长/滚动一次——
+  // 这正是用户感知到的「每次生成日志页面多出一行」。
+  // 这里用已存在的 logsEndRef 哨兵向上 closest('.logs-list') 取到滚动容器，
+  // 直接设置 scrollTop，滚动被限制在该容器内部，不会影响祖先。
   useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const endEl = logsEndRef.current
+    const listEl = endEl?.closest('.logs-list') as HTMLElement | null
+    if (!listEl) return
+    listEl.scrollTo({ top: listEl.scrollHeight, behavior: 'smooth' })
   }, [filteredLogs])
 
   // 点击外部关闭导出菜单

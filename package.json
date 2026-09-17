@@ -1,6 +1,6 @@
 {
   "name": "pilaoban-grading-tool",
-  "version": "2.6.4",
+  "version": "2.6.8",
   "description": "皮老板智能阅卷工具 - AI智能评分",
   "main": "dist/main/main.js",
   "author": "皮老板",

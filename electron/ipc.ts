@@ -8,8 +8,9 @@ import { BrowserWindow } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
 import axios from 'axios'
-import { PATHS } from './utils/constants'
+import { PATHS, AI } from './utils/constants'
 import { assertSafeAIEndpoint, assertProviderEndpointBinding } from './utils/endpointGuard'
+import { buildThinkingParams, explainEmptyContent } from './utils/thinkingParams'
 import type { NextPaperResult } from './adapters/PlatformAdapter.interface'
 
 /**
@@ -268,8 +269,12 @@ function registerBotSettingHandlers(): void {
     prompt: string
     temperature: number
     maxTokens: number
+    // 思考模式（DeepSeek）：来自设置页开关 / 服务商配置。
+    // 修复：此前测试连接从不透传该参数，用户在界面上关闭思考模式对测试路径无效。
+    thinkingEnabled?: boolean
+    reasoningEffort?: 'low' | 'high' | 'max'
   }) => {
-    const { providerId, endpoint, model, prompt, temperature, maxTokens } = params
+    const { providerId, endpoint, model, prompt, temperature, maxTokens, thinkingEnabled, reasoningEffort } = params
 
     // 安全修复（阻断-06）：endpoint 来自渲染层，而下面会带上从 secureStorage 读出的
     // 真实 apiKey 发请求，因此必须先过端点守卫（协议 / 白名单 / 内网与 IP 直连 / URL 内嵌凭据）。
@@ -320,9 +325,10 @@ function registerBotSettingHandlers(): void {
             { role: 'user', content: prompt },
           ],
           temperature: temperature || 0.7,
-          // 200 太小：思考模式会先用思维链消耗输出额度，正文容易被挤空
-          max_tokens: maxTokens || 1000,
-          stream: false,
+          // 兜底额度：思考模式会先用思维链消耗输出额度，过小会把正文挤空（默认 4000）
+          max_tokens: maxTokens || AI.DEFAULT_MAX_TOKENS,
+          // 思考参数与 AIService 共用同一份实现（thinkingParams.ts），杜绝两处漂移
+          ...buildThinkingParams({ thinkingEnabled, reasoningEffort }),
         },
         {
           headers: {
@@ -342,9 +348,9 @@ function registerBotSettingHandlers(): void {
 
       if (!content) {
         // 修复：此前 content 为空会回退成 "(测试响应)" 这种假结果，并谎报"调用成功"
-        const hint = reasoningContent
-          ? '模型只返回了思维链、正文为空：通常是 max_tokens 被思考模式耗尽，请调大 max_tokens 或关闭思考模式'
-          : '模型返回内容为空：请检查模型名称是否正确、该服务商是否支持当前调用格式'
+        // 文案与 AIService 共用 explainEmptyContent：用户已关闭思考却仍收到思维链时，
+        // 不再叫他去"关闭思考模式"（那是他已经做过的动作）。
+        const hint = explainEmptyContent(reasoningContent, thinkingEnabled)
         return { success: false, error: hint, time: elapsed, reasoning: reasoningContent || undefined }
       }
 

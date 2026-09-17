@@ -25,7 +25,11 @@ import {
 import toast from 'react-hot-toast'
 import { useStandardsStore } from '@/store/standardsStore'
 import { useGradingStore, type LogEntry } from '@/store/gradingStore'
-import { useRecordsStore } from '@/store/recordsStore'
+import {
+  useRecordsStore,
+  getRecordsPersistError,
+  clearRecordsPersistError,
+} from '@/store/recordsStore'
 import { useSound } from '@/hooks/useSound'
 import { gradingBotProxy } from '@/services/playwrightProxy'
 import GradingLogs from '@/components/grading/GradingLogs'
@@ -112,6 +116,154 @@ const isSubmitAcknowledged = (res: unknown): boolean => {
   return false
 }
 
+/**
+ * 把一次坐标动作（`clickAt` / `typeAt`）的**失败**结果翻译成可诊断文案。
+ *
+ * 配套用法：调用点必须用**显式白名单**判定成功（`res === true`），
+ * 其余一切取值（`false` / `{ error }` / `undefined` / `null`）都视为失败，
+ * 再由本函数渲染原因。这样「点击分数框 → 输入分数 → 点击提交」任一环节
+ * 失败都会走到 `noteLoopFailure` + 暂停，**绝不进入提交与 completed 记录**
+ * （P0：坐标落在视口外时旧实现返回 `false` 被静默忽略，分数没进输入框却照样报成功）。
+ */
+const describeCoordinateActionFailure = (res: unknown): string => {
+  if (res !== null && typeof res === 'object' && 'error' in res) {
+    return describeGradingError(String((res as { error?: unknown }).error))
+  }
+  if (res === false) return '主进程返回 false（动作未派发成功）'
+  if (res === undefined || res === null) return '主进程未返回结果（页面可能已失效）'
+  return `未确认成功（返回值类型：${typeof res}）`
+}
+
+/**
+ * 错误翻译：把技术错误翻译为用户能看懂、且**能照着做**的提示。
+ *
+ * 注意 `GRADING_ERROR_FALLBACK` 是"没命中任何模式"的兜底文案。历史上它把原始错误
+ * 完全吞掉，用户只看到「操作失败，请查看日志或重新尝试」，而日志里同样只有这句翻译
+ * 结果——真实原因（QuotaExceededError）被彻底丢失，无法定位。
+ * 因此：错误日志必须用 `describeGradingError()`（会带上原始错误），
+ * 只有需要"纯友好文案"时才直接调用 `translateError()`。
+ */
+export const GRADING_ERROR_FALLBACK = '操作失败，请查看日志或重新尝试'
+
+const STORAGE_QUOTA_HINT =
+  '浏览器存储空间已满，批改记录无法保存；请到「记录」页清理历史记录后重试'
+
+/** 错误翻译表：**越具体的模式越要放在前面**（匹配是 includes + 顺序遍历） */
+const gradingErrorMap: Record<string, string> = {
+  // ==== 存储 / 持久化（本次 bug 的真实原因）====
+  'exceeded the quota': STORAGE_QUOTA_HINT,
+  'QuotaExceeded': STORAGE_QUOTA_HINT,
+  'NS_ERROR_DOM_QUOTA_REACHED': STORAGE_QUOTA_HINT,
+  'setItem': STORAGE_QUOTA_HINT,
+  'localStorage': STORAGE_QUOTA_HINT,
+  "'Storage'": STORAGE_QUOTA_HINT,
+  'SecurityError': '浏览器拒绝了本地存储访问（存储可能已被禁用），请检查系统存储权限',
+
+  // ==== 渲染进程 ↔ 主进程 通信（提交/点击走 IPC）====
+  'Error invoking remote method': '与主进程通信失败（自动化服务可能已退出），请重启浏览器后重试',
+  'No handler registered': '主进程缺少对应能力（版本不匹配），请重新安装或更新到最新版本',
+  'render frame was disposed': '批改页面已关闭，请重新连接浏览器',
+
+  // ==== 浏览器 / 页面 ====
+  'Target closed': '浏览器页面已关闭，请重新启动浏览器',
+  'Target page': '浏览器页面已关闭，请重新启动浏览器',
+  'browser has been closed': '浏览器已关闭，请重新连接',
+  'Browser has been closed': '浏览器已关闭，请重新连接',
+  'has been closed': '浏览器已关闭，请重新连接',
+  'browserContext': '浏览器上下文已失效，请重新启动浏览器',
+  'net::ERR_INTERNET_DISCONNECTED': '网络已断开，请检查网络连接',
+  'net::ERR_CONNECTION': '网络连接失败，请检查网络',
+  'ETIMEDOUT': '请求超时，请检查网络或稍后重试',
+  'Timeout': '操作超时，请检查网络或页面状态后重试',
+  'ECONNRESET': '连接被重置，请重试',
+  'ENOTFOUND': '服务器地址未找到，请检查配置',
+
+  // ==== 磁盘 / 内存 ====
+  'ENOSPC': '磁盘空间不足，请清理磁盘后重试',
+  'Array buffer allocation failed': '内存不足，请关闭其他程序后重试',
+
+  // ==== AI 服务 ====
+  // 注意：这里**不能用纯数字做 key**。JS 对象的整数型键会被枚举引擎排到最前面，
+  // 于是 '500' 会抢在任何文本模式之前命中——例如 "Timeout 5000ms exceeded"
+  // 会被误判成「服务器内部错误」。改成带上下文的写法，既能命中 axios 的
+  // "Request failed with status code 500"，又不会误伤。
+  'status code 401': 'API 认证失败，请检查 API Key 是否正确',
+  'HTTP 401': 'API 认证失败，请检查 API Key 是否正确',
+  'Unauthorized': 'API 认证失败，请检查 API Key 是否正确',
+  'status code 403': 'API 权限不足，请检查账户状态',
+  'HTTP 403': 'API 权限不足，请检查账户状态',
+  'status code 429': 'API 请求过于频繁，请稍后重试',
+  'HTTP 429': 'API 请求过于频繁，请稍后重试',
+  'Too Many Requests': 'API 请求过于频繁，请稍后重试',
+  'status code 500': '服务器内部错误，请稍后重试',
+  'HTTP 500': '服务器内部错误，请稍后重试',
+  'Internal Server Error': '服务器内部错误，请稍后重试',
+  'status code 502': '网关错误，AI 服务暂时不可用',
+  'HTTP 502': '网关错误，AI 服务暂时不可用',
+  'Bad Gateway': '网关错误，AI 服务暂时不可用',
+  'status code 503': 'AI 服务暂时不可用，请稍后重试',
+  'HTTP 503': 'AI 服务暂时不可用，请稍后重试',
+  'Service Unavailable': 'AI 服务暂时不可用，请稍后重试',
+  '浏览器连接已断开': '浏览器连接已断开，请重新启动浏览器',
+}
+
+export function translateError(error: string): string {
+  const raw = String(error ?? '')
+  for (const [key, value] of Object.entries(gradingErrorMap)) {
+    if (raw.includes(key)) return value
+  }
+  return GRADING_ERROR_FALLBACK
+}
+
+/** 是否是「存储配额/写入失败」类错误（用于追加"去记录页清理"的可行动建议） */
+export function isStorageQuotaError(error: string): boolean {
+  return /exceeded the quota|QuotaExceeded|setItem|localStorage|'Storage'|NS_ERROR_DOM_QUOTA_REACHED/i.test(
+    String(error ?? '')
+  )
+}
+
+/**
+ * 生成「用户可读 + 可诊断」的错误描述。
+ * 命中翻译表时只给友好文案；未命中时把原始错误（截断为单行 120 字符）附在后面，
+ * 这样即使用户只截一张 toast 图，也能看到真实原因。
+ */
+export function describeGradingError(error: string): string {
+  const raw = String(error ?? '')
+  const friendly = translateError(raw)
+  if (friendly !== GRADING_ERROR_FALLBACK) return friendly
+  const snippet = raw.replace(/\s+/g, ' ').trim().slice(0, 120)
+  if (!snippet) return friendly
+  return `${friendly}（原始错误：${snippet}）`
+}
+
+/**
+ * 不可恢复错误（致命）：出现这些错误说明浏览器 / 主进程已经不可用，
+ * 继续循环只会在死页面上空转，因此必须结束本次会话并给出明确说明。
+ *
+ * 刻意**只**收录真正不可恢复的情况。以下都属于「可恢复」，绝不在此列：
+ *  - 存储配额写入失败（接上容错存储后已不再抛）
+ *  - 坐标点未命中 / 分数未写入输入框（暂停后人工处理即可）
+ *  - 平台未确认提交（暂停后人工补录即可）
+ * 这些走「单份隔离 + 自动暂停」，不应该把整个会话判成"批改中断"。
+ */
+const FATAL_GRADING_ERROR_PATTERNS = [
+  'has been closed',
+  'Target closed',
+  'Target page',
+  'browserContext',
+  'browser has been closed',
+  'Error invoking remote method',
+  'No handler registered',
+  'render frame was disposed',
+  '浏览器连接已断开',
+  '浏览器已关闭',
+] as const
+
+export function isFatalGradingError(error: string): boolean {
+  const raw = String(error ?? '')
+  return FATAL_GRADING_ERROR_PATTERNS.some((pattern) => raw.includes(pattern))
+}
+
 export default function CoordinateGradingPage() {
   const { standards, currentStandardId, setCurrentStandard } = useStandardsStore()
   const { playSuccess, playError, playClick } = useSound()
@@ -165,37 +317,78 @@ export default function CoordinateGradingPage() {
 
   // 本地状态
   const [isConnecting, setIsConnecting] = useState(false)
-  const runningRef = useRef(false)
-  const pausedRef = useRef(false)
+  // 运行 / 暂停状态以 gradingStore 为唯一事实来源（不再用组件内 useRef）：
+  // 批改主循环是脱离组件生命周期的长驻异步循环，切换页面再回来时组件会重新挂载、
+  // useRef 会重置为 false —— 界面显示"未在批改"，而旧循环仍在后台点击平台，
+  // 老师再点一次「开始批改」就会两个循环同时批改。用 store 既保留了跨页面状态，
+  // 也让「停止」和测试清理能真正叫停循环。
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const confirmResolveRef = useRef<((score: number) => void) | null>(null)
   const countdownRef = useRef(0)
   const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const abortRef = useRef(false)  // 用于中断批改循环
 
-  // 错误翻译函数：将技术错误翻译为用户友好提示
-  const translateError = useCallback((error: string): string => {
-    const errorMap: Record<string, string> = {
-      'Target closed': '浏览器页面已关闭，请重新启动浏览器',
-      'browser has been closed': '浏览器已关闭，请重新连接',
-      'net::ERR_INTERNET_DISCONNECTED': '网络已断开，请检查网络连接',
-      'net::ERR_CONNECTION': '网络连接失败，请检查网络',
-      'ETIMEDOUT': '请求超时，请检查网络或稍后重试',
-      'ECONNRESET': '连接被重置，请重试',
-      'ENOTFOUND': '服务器地址未找到，请检查配置',
-      '401': 'API 认证失败，请检查 API Key 是否正确',
-      '403': 'API 权限不足，请检查账户状态',
-      '429': 'API 请求过于频繁，请稍后重试',
-      '500': '服务器内部错误，请稍后重试',
-      '502': '网关错误，AI 服务暂时不可用',
-      '503': 'AI 服务暂时不可用，请稍后重试',
-      '浏览器连接已断开': '浏览器连接已断开，请重新启动浏览器',
+  /**
+   * 非关键副作用的「安全执行」包装（阻断-04）。
+   *
+   * 背景：皮老板反馈「试改模式确认提交后弹『批改中断: 操作失败，请查看日志或重新尝试』，
+   * 但分数已正常生成」。根因是「保存批改记录」把整张 base64 截图写进 localStorage，
+   * 配额耗尽时 setItem **同步**抛 QuotaExceededError，异常一路冒泡到批改主循环的 catch，
+   * 被当成"批改中断"。
+   *
+   * 规则：保存记录 / 音效 / 进度持久化这类"锦上添花"的副作用，失败只能降级为一条
+   * warning 日志，**绝不允许**冒泡成"批改中断"；核心业务（AI 判分、平台提交确认）
+   * 依然保持原语义抛错。
+   *
+   * 注意：配额耗尽时所有 persisted store 的写入都会抛，连 addLog 自己也会抛，
+   * 因此日志写入必须再包一层 try/catch，保证"报告失败"这件事本身不会失败。
+   */
+  const runSideEffect = useCallback((label: string, action: () => void): void => {
+    try {
+      action()
+    } catch (error: any) {
+      const raw = String(error?.message || error || '未知错误')
+      try {
+        addLogToStore(
+          `[非致命] ${label}失败，已跳过并继续批改（原始错误：${raw}）`,
+          'warning'
+        )
+      } catch (logError) {
+        console.error(`[非致命] ${label}失败，且日志写入也失败:`, raw, logError)
+      }
     }
-    for (const [key, value] of Object.entries(errorMap)) {
-      if (error.includes(key)) return value
+  }, [addLogToStore])
+
+  /** 持久化降级提示：记录已在内存里，但没能写盘（配额满），给出可行动建议 */
+  const reportPersistDegradation = useCallback((): void => {
+    const persistError = getRecordsPersistError()
+    if (!persistError) return
+    clearRecordsPersistError()
+    try {
+      addLogToStore(
+        `批改记录已保留在本次会话中，但磁盘写入降级（${persistError}）；建议在「记录」页清理历史记录后重试`,
+        'warning'
+      )
+    } catch (error) {
+      console.error('[recordsStore] 持久化降级提示写入日志失败:', persistError, error)
     }
-    return '操作失败，请查看日志或重新尝试'
-  }, [])
+  }, [addLogToStore])
+
+  /**
+   * 跨页面导航状态保留：重新进入本页时，用 store 里的真实运行状态把界面接回来。
+   *
+   * 背景：批改主循环是脱离组件生命周期的长驻异步循环——切到「记录」/「设置」页
+   * 并不会让它停止。而组件重新挂载时 `isRunning` 若按默认值渲染，界面会显示成
+   * "未在批改"（大字「开始批改」按钮又冒出来），老师以为批改停了，
+   * 再点一次就会触发双循环。这里以 store 为准恢复界面状态。
+   */
+  useEffect(() => {
+    const { isRunning: stillRunning, isPaused: stillPaused } = useGradingStore.getState()
+    if (stillRunning) {
+      setIsRunning(true)
+      setIsPaused(stillPaused)
+    }
+  }, [setIsRunning, setIsPaused])
 
   // 坐标配置状态（从 localStorage 加载）
   const [configs, setConfigs] = useState<CoordinateConfig[]>(loadConfigs)
@@ -502,7 +695,7 @@ export default function CoordinateGradingPage() {
       setCountdown(seconds)
 
       countdownTimerRef.current = setInterval(() => {
-        if (!runningRef.current || pausedRef.current) {
+if (!useGradingStore.getState().isRunning || useGradingStore.getState().isPaused) {
           clearInterval(countdownTimerRef.current!)
           resolve(false)
           return
@@ -586,10 +779,15 @@ export default function CoordinateGradingPage() {
       toast.error('请先配置坐标')
       return
     }
+    // 双循环守卫：批改循环是脱离组件生命周期的长驻异步循环（切到「记录」页再回来
+    // 它仍在跑）。已有循环在运行时绝不能启动第二个——否则两个循环同时点击平台、
+    // 互相覆盖分数，且日志会交错，表现为"分数填错/状态混乱"。
+    if (useGradingStore.getState().isRunning) {
+      toast.error('已有批改任务在运行，请先点击「停止」再重新开始')
+      return
+    }
 
     playClick()
-    runningRef.current = true
-    pausedRef.current = false
     abortRef.current = false
     setIsRunning(true)
     setIsPaused(false)
@@ -627,350 +825,568 @@ export default function CoordinateGradingPage() {
       // 连续失败计数（高-02）：任一环节失败都累加，成功提交一份后清零。
       // 达到阈值即自动暂停，而不是无限重试同一屏。
       let consecutiveFailures = 0
+      // 致命错误：一旦置值表示浏览器 / 主进程已不可用，本次会话必须结束。
+      // 与"批改中断"区分处理——它属于环境终结，不是用户可修复的操作失败。
+      let fatalError: string | null = null
       const noteLoopFailure = (reason: string): void => {
         consecutiveFailures++
         if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
           addLog(`连续 ${consecutiveFailures} 次失败，已自动暂停：${reason}`, 'error')
           addLog('请检查答题区坐标或页面状态，确认无误后点击「继续」恢复批改', 'warning')
           toast.error(`连续 ${consecutiveFailures} 次失败，已自动暂停，请检查答题区坐标或页面状态`)
-          playError()
-          pausedRef.current = true
+          runSideEffect('播放提示音', () => playError())
           setIsPaused(true)
         }
       }
 
+      /**
+       * 落盘一份批改记录（实时保存）。
+       *
+       * 为什么做成统一出口：皮老板反馈「试改的卷子分数和答案并没有被保存」。
+       * 旧实现只在「平台确认提交成功」这一条路径上写记录——提交一旦未被确认
+       * （坐标点空、平台弹窗、页面切走），这份的分数与作答原文就彻底丢了，
+       * 「记录」页里既找不到分数也找不到答案。
+       *
+       * 现在改为：**只要完成判分就写记录**，用 status 区分是否已落库平台：
+       *  - completed：平台已确认提交，记录即最终结果
+       *  - pending  ：已判分但未确认提交（坐标未命中 / 平台未确认），需人工补录
+       * 两条路径都保留分数、满分、作答原文与打分依据，不会再丢数据。
+       *
+       * 注意：记录写入属于非关键副作用，必须走 runSideEffect —— 任何持久化异常
+       * 都不允许冒泡成"批改中断"。
+       */
+      const savePaperRecord = (params: {
+        score: number
+        aiScore: number
+        comment: string
+        reasoning: string
+        answerText: string
+        answerImage: string
+        maxScore: number
+        isBlank: boolean
+        status: 'completed' | 'pending'
+      }): void => {
+        const now = Date.now()
+        runSideEffect('保存批改记录', () => {
+          addRecord({
+            studentId: `student_${now}`,
+            studentName: `学生${now % 10000}`,
+            questionNumber: currentStandard?.questionNumber || currentStandard?.name || '未知题目',
+            standardId: currentStandard?.id || '',
+            standardName: currentStandard?.name || '',
+            answerImage: params.answerImage,
+            ocrText: params.answerText,
+            score: params.score,
+            maxScore: params.maxScore,
+            aiScore: params.aiScore,
+            aiComment: params.comment,
+            reasoning: params.reasoning,
+            evaluationMode: 'ai',
+            status: params.status,
+            isBlank: params.isBlank,
+            completedAt: new Date(now).toISOString(),
+          })
+        })
+        reportPersistDegradation()
+      }
+
       while (true) {
-        if (!runningRef.current) break
-        if (pausedRef.current) {
+if (!useGradingStore.getState().isRunning) break
+if (useGradingStore.getState().isPaused) {
           await new Promise(r => setTimeout(r, 500))
           continue
         }
 
-        updateStats((prev) => ({ total: prev.total + 1 }))
-
-        // 1. 坐标截图答题区域
-        addLog('正在截图答题区域...', 'info', true)
-        let image: string | null = null
+        // ==== 单份隔离（本次修复核心）====
+        // 一份试卷处理过程中的任何意外异常都只能影响这一份，绝不允许把整个批改会话带走。
+// 旧实现：异常一路冒泡到外层 catch → toast「批改中断」→ finally 里 isRunning=false
+        // → 会话在第 1 份之后直接死掉，用户看到的就是"改完一份就自动停止"。
         try {
-          const captureResult = await gradingBotProxy.captureByCoordinate(
-            currentConfig.answerArea.x,
-            currentConfig.answerArea.y,
-            currentConfig.answerArea.width,
-            currentConfig.answerArea.height
-          )
-          // 检查是否返回了错误对象
-          if (captureResult && typeof captureResult === 'object' && 'error' in captureResult) {
-            const reason = `截图失败: ${translateError((captureResult as any).error)}`
-            addLog(reason, 'error')
-            updateStats((prev) => ({ failed: prev.failed + 1 }))
-            noteLoopFailure(reason)
-            await new Promise(r => setTimeout(r, 2000))
-            continue
-          }
-          image = captureResult
-        } catch (captureError: any) {
-          const errMsg = String(captureError?.message || captureError || '未知错误')
-          addLog(`截图异常: ${translateError(errMsg)}`, 'error')
-        }
+          updateStats((prev) => ({ total: prev.total + 1 }))
 
-        if (!image) {
-          addLog('截图失败，跳过本份', 'warning')
-          updateStats((prev) => ({ failed: prev.failed + 1 }))
-          noteLoopFailure('截图失败，未能获取答题区图像')
-          await new Promise(r => setTimeout(r, 2000))
-          continue
-        }
-
-        addLog(`截图成功 (${(image.length / 1024).toFixed(0)}KB)`, 'success', true)
-        setPreviewImage(image)
-
-        // 2. AI 评分：首选「图像直评」（视觉模型看图直接识别并评分）；
-        //    失败 / 结果不可解析时自动回退「OCR + 文本评分」，并记录切换原因。
-        addLog('正在图像直评...', 'info', true)
-        let gradeResult: { score: number; comment: string; reasoning?: string; needsHumanReview?: boolean; errorTags?: string[]; rubricBreakdown?: Array<{ id: string; awarded: number }>; transcript?: string } = { score: 0, comment: '评分失败', needsHumanReview: true }
-        let gradingPath: 'vision' | 'ocr' = 'vision'
-        let ocrTextForRecord = ''
-
-        let visionOutcome: { ok: boolean; result?: typeof gradeResult; reason?: string } | null = null
-        try {
-          visionOutcome = await gradingBotProxy.gradeWithImage(image, correctionHistory)
-        } catch (err) {
-          visionOutcome = { ok: false, reason: `图像直评异常：${err}` }
-        }
-
-        if (visionOutcome?.ok && visionOutcome.result) {
-          gradeResult = visionOutcome.result
-          addLog('图像直评完成（视觉模型直接读图评分）', 'success', true)
-        } else {
-          // ==== 回退：OCR + 文本评分 ====
-          gradingPath = 'ocr'
-          addLog(`图像直评不可用（${visionOutcome?.reason || '未知原因'}），自动切换 OCR 兜底`, 'warning')
-
-          addLog('正在识别文字...', 'info', true)
-          const ocrResult = await gradingBotProxy.recognizeText(image)
-
-          if (ocrResult.error) {
-            const reason = `OCR识别失败: ${translateError(ocrResult.error)}`
-            addLog(reason, 'error')
-            updateStats((prev) => ({ failed: prev.failed + 1 }))
-            noteLoopFailure(reason)
-            await new Promise(r => setTimeout(r, 2000))
-            continue
-          }
-
-          setRecognizedText(ocrResult.text)
-          ocrTextForRecord = ocrResult.text
-
-          // 空白卷检测
-          if (ocrResult.isBlank) {
-            addLog('检测到空白卷，打0分', 'warning')
-            setAiComment('空白卷')
-
-            await gradingBotProxy.clickAt(currentConfig.scoreInput.x, currentConfig.scoreInput.y)
-            await new Promise(r => setTimeout(r, 200))
-            await gradingBotProxy.typeAt(currentConfig.scoreInput.x, currentConfig.scoreInput.y, '0')
-
-            await new Promise(r => setTimeout(r, 500))
-            const blankSubmitAck = await gradingBotProxy.clickAt(currentConfig.submitButton.x, currentConfig.submitButton.y)
-            // 空白卷提交同样必须确认落库（阻断-03）：clickAt 返回 false / { error } 时不得记 completed
-            if (!isSubmitAcknowledged(blankSubmitAck)) {
-              addLog('空白卷 0 分未被平台确认提交，已暂停等待人工核对', 'error')
+          // 1. 坐标截图答题区域
+          addLog('正在截图答题区域...', 'info', true)
+          let image: string | null = null
+          try {
+            const captureResult = await gradingBotProxy.captureByCoordinate(
+              currentConfig.answerArea.x,
+              currentConfig.answerArea.y,
+              currentConfig.answerArea.width,
+              currentConfig.answerArea.height
+            )
+            // 检查是否返回了错误对象
+            if (captureResult && typeof captureResult === 'object' && 'error' in captureResult) {
+              const reason = `截图失败: ${describeGradingError((captureResult as any).error)}`
+              addLog(reason, 'error')
               updateStats((prev) => ({ failed: prev.failed + 1 }))
-              toast.error('空白卷 0 分未落库，已暂停，请人工核对')
-              playError()
-              pausedRef.current = true
-              setIsPaused(true)
+              noteLoopFailure(reason)
+              await new Promise(r => setTimeout(r, 2000))
+              continue
+            }
+            image = captureResult
+          } catch (captureError: any) {
+            const errMsg = String(captureError?.message || captureError || '未知错误')
+            addLog(`截图异常: ${describeGradingError(errMsg)}`, 'error')
+          }
+
+          if (!image) {
+            addLog('截图失败，跳过本份', 'warning')
+            updateStats((prev) => ({ failed: prev.failed + 1 }))
+            noteLoopFailure('截图失败，未能获取答题区图像')
+            await new Promise(r => setTimeout(r, 2000))
+            continue
+          }
+
+          addLog(`截图成功 (${(image.length / 1024).toFixed(0)}KB)`, 'success', true)
+          setPreviewImage(image)
+
+          // 2. AI 评分：首选「图像直评」（视觉模型看图直接识别并评分）；
+          //    失败 / 结果不可解析时自动回退「OCR + 文本评分」，并记录切换原因。
+          addLog('正在图像直评...', 'info', true)
+          let gradeResult: { score: number; comment: string; reasoning?: string; needsHumanReview?: boolean; errorTags?: string[]; rubricBreakdown?: Array<{ id: string; awarded: number }>; transcript?: string } = { score: 0, comment: '评分失败', needsHumanReview: true }
+          let gradingPath: 'vision' | 'ocr' = 'vision'
+          let ocrTextForRecord = ''
+
+          let visionOutcome: { ok: boolean; result?: typeof gradeResult; reason?: string } | null = null
+          try {
+            visionOutcome = await gradingBotProxy.gradeWithImage(image, correctionHistory)
+          } catch (err) {
+            visionOutcome = { ok: false, reason: `图像直评异常：${err}` }
+          }
+
+          if (visionOutcome?.ok && visionOutcome.result) {
+            gradeResult = visionOutcome.result
+            addLog('图像直评完成（视觉模型直接读图评分）', 'success', true)
+          } else {
+            // ==== 回退：OCR + 文本评分 ====
+            gradingPath = 'ocr'
+            addLog(`图像直评不可用（${visionOutcome?.reason || '未知原因'}），自动切换 OCR 兜底`, 'warning')
+
+            addLog('正在识别文字...', 'info', true)
+            const ocrResult = await gradingBotProxy.recognizeText(image)
+
+            if (ocrResult.error) {
+              const reason = `OCR识别失败: ${describeGradingError(ocrResult.error)}`
+              addLog(reason, 'error')
+              updateStats((prev) => ({ failed: prev.failed + 1 }))
+              noteLoopFailure(reason)
+              await new Promise(r => setTimeout(r, 2000))
+              continue
+            }
+
+            setRecognizedText(ocrResult.text)
+            ocrTextForRecord = ocrResult.text
+
+            // 空白卷检测
+            if (ocrResult.isBlank) {
+              addLog('检测到空白卷，打0分', 'warning')
+              setAiComment('空白卷')
+
+              // 空白卷 0 分同样必须先「点中分数框 → 0 写入成功」才允许提交：
+              // 坐标落在视口外时旧实现返回的 false 被忽略，会直接去点提交，
+              // 提交的是空值或上一份残留的分数（P0 静默错分的同一根因）。
+              const blankClickAck = await gradingBotProxy.clickAt(currentConfig.scoreInput.x, currentConfig.scoreInput.y)
+              if (blankClickAck !== true) {
+                const reason = `空白卷：分数输入框未点中，已暂停等待人工核对（${describeCoordinateActionFailure(blankClickAck)}）`
+                addLog(reason, 'error')
+                updateStats((prev) => ({ failed: prev.failed + 1 }))
+                noteLoopFailure(reason)
+                toast.error('空白卷分数框未点中，已暂停，请人工核对')
+                runSideEffect('播放提示音', () => playError())
+                setIsPaused(true)
+                await new Promise(r => setTimeout(r, 1500))
+                continue
+              }
+              await new Promise(r => setTimeout(r, 200))
+              const blankTypeAck = await gradingBotProxy.typeAt(currentConfig.scoreInput.x, currentConfig.scoreInput.y, '0')
+              if (blankTypeAck !== true) {
+                const reason = `空白卷：0 分未写入输入框，已暂停等待人工核对（${describeCoordinateActionFailure(blankTypeAck)}）`
+                addLog(reason, 'error')
+                updateStats((prev) => ({ failed: prev.failed + 1 }))
+                noteLoopFailure(reason)
+                toast.error('空白卷 0 分未写入，已暂停，请人工核对')
+                runSideEffect('播放提示音', () => playError())
+                setIsPaused(true)
+                await new Promise(r => setTimeout(r, 1500))
+                continue
+              }
+
+              await new Promise(r => setTimeout(r, 500))
+              const blankSubmitAck = await gradingBotProxy.clickAt(currentConfig.submitButton.x, currentConfig.submitButton.y)
+              // 空白卷提交同样必须确认落库（阻断-03）：clickAt 返回 false / { error } 时不得记 completed
+              if (!isSubmitAcknowledged(blankSubmitAck)) {
+                addLog('空白卷 0 分未被平台确认提交，已暂停等待人工核对', 'error')
+                updateStats((prev) => ({ failed: prev.failed + 1 }))
+                // 实时保存：空白卷也要留痕（0 分 + 空白标记），避免"这份到底改没改"说不清。
+                // 此处早于 `const maxScore` 声明，故直接取标准总分。
+                savePaperRecord({
+                  score: 0,
+                  aiScore: 0,
+                  comment: '空白卷',
+                  reasoning: '检测到空白卷，按 0 分处理；平台未确认提交，需人工补录',
+                  answerText: ocrTextForRecord,
+                  answerImage: image || '',
+                  maxScore: currentStandard?.totalScore || 10,
+                  isBlank: true,
+                  status: 'pending',
+                })
+                toast.error('空白卷 0 分未落库（已存入记录待处理），已暂停，请人工核对')
+                runSideEffect('播放提示音', () => playError())
+                setIsPaused(true)
+                await new Promise(r => setTimeout(r, 1500))
+                continue
+              }
+
+              updateStats((prev) => ({ blank: prev.blank + 1, completed: prev.completed + 1, currentScore: 0 }))
+              consecutiveCount++
+              consecutiveFailures = 0
+              // 实时保存：空白卷此前完全不写记录，导致统计里有"空白"，「记录」页却查不到这一份
+              savePaperRecord({
+                score: 0,
+                aiScore: 0,
+                comment: '空白卷',
+                reasoning: '检测到空白卷，按 0 分处理并已提交',
+                answerText: ocrTextForRecord,
+                answerImage: image || '',
+                // 此处早于 `const maxScore` 的声明（它在空白卷分支之后），
+                // 不能引用那个块级变量，否则运行时命中 TDZ ReferenceError。
+                maxScore: currentStandard?.totalScore || 10,
+                isBlank: true,
+                status: 'completed',
+              })
+              runSideEffect('播放提示音', () => playClick())
+
               await new Promise(r => setTimeout(r, 1500))
               continue
             }
 
-            updateStats((prev) => ({ blank: prev.blank + 1, completed: prev.completed + 1, currentScore: 0 }))
-            consecutiveCount++
-            consecutiveFailures = 0
-            playClick()
-
-            await new Promise(r => setTimeout(r, 1500))
-            continue
-          }
-
-          const maxRetries = gradingMode === 'unattended' ? 3 : 1
-          let retryCount = 0
-          while (retryCount < maxRetries) {
-            try {
-              gradeResult = await gradingBotProxy.gradeWithAI(ocrResult.text, correctionHistory)
-              break
-            } catch (err) {
-              retryCount++
-              if (retryCount >= maxRetries) {
-                addLog(`AI评分失败: ${err}`, 'error')
-                updateStats((prev) => ({ failed: prev.failed + 1 }))
-                // 阻断-02：本地降级出口必须带 needsHumanReview，绝不能用 0 分占位冒充 AI 判分
-                gradeResult = { score: 0, comment: '评分失败', needsHumanReview: true }
+            const maxRetries = gradingMode === 'unattended' ? 3 : 1
+            let retryCount = 0
+            while (retryCount < maxRetries) {
+              try {
+                gradeResult = await gradingBotProxy.gradeWithAI(ocrResult.text, correctionHistory)
                 break
+              } catch (err) {
+                retryCount++
+                if (retryCount >= maxRetries) {
+                  addLog(`AI评分失败: ${err}`, 'error')
+                  updateStats((prev) => ({ failed: prev.failed + 1 }))
+                  // 阻断-02：本地降级出口必须带 needsHumanReview，绝不能用 0 分占位冒充 AI 判分
+                  gradeResult = { score: 0, comment: '评分失败', needsHumanReview: true }
+                  break
+                }
+                addLog(`评分失败，重试(${retryCount}/${maxRetries})...`, 'warning')
+                await new Promise(r => setTimeout(r, 1000))
               }
-              addLog(`评分失败，重试(${retryCount}/${maxRetries})...`, 'warning')
-              await new Promise(r => setTimeout(r, 1000))
             }
           }
-        }
 
-        const finalScore = gradeResult.score
-        const maxScore = currentStandard?.totalScore || 10
-        const scorePercent = Math.round((finalScore / maxScore) * 100)
-        updateStats({ currentScore: finalScore })
-        setAiComment(gradeResult.comment)
-        // 存储本份的评分分析，供界面展示"为什么打这个分"
-        setAiAnalysis({
-          breakdown: gradeResult.rubricBreakdown || [],
-          errorTags: gradeResult.errorTags || [],
-          reasoning: gradeResult.reasoning || '',
-          needsHumanReview: gradeResult.needsHumanReview === true,
-        })
-        // 每份试卷的核心结果行（精简模式下也保留）
-        addLog(`第 ${consecutiveCount + 1} 份 → ${finalScore}分 / ${maxScore}分 (${scorePercent}%) ${gradingPath === 'vision' ? '[图像直评]' : '[OCR兜底]'}`, 'success')
-
-        // 5. 根据模式处理
-        let submitScore = finalScore
-
-        // 显式白名单（阻断-02）：只有「已确认无需人工复核」的判分结果才允许进入自动提交路径。
-        // needsHumanReview === true 表示本次分数来自降级出口（解析失败 / 本地兜底 / 模型明确标注），
-        // 绝不能用占位分数冒充 AI 判分自动上屏——无论普通 / 试改 / 无人值守模式，一律停在人工复核。
-        const requiresHumanReview = gradeResult.needsHumanReview === true
-
-        if (requiresHumanReview) {
-          const modeLabel = gradingMode === 'normal' ? '普通' : gradingMode === 'trial' ? '试改' : '无人值守'
-          addLog(`${modeLabel}模式：本次判分未由模型可靠完成（需人工复核），暂停自动提交，请教师确认`, 'warning')
-          toast.error('本次判分需人工复核，已暂停自动提交')
-          setWaitingConfirm(true)
-          submitScore = await handleCorrection(finalScore)
-          setWaitingConfirm(false)
-          if (!runningRef.current) {
-            addLog('已停止批改，当前份未提交', 'warning')
-            break
-          }
-        } else if (gradingMode === 'normal') {
-          addLog('普通模式: 5秒后自动提交...', 'info', true)
-          const shouldSubmit = await startCountdown(5)
-          if (!shouldSubmit) {
-            // 修复 BUG-EXE-004：取消倒计时原为"静默放弃当前份并继续下一份"，
-            // 改为暂停等待人工决策，当前份不提交、不跳过。
-            addLog('已取消自动提交，当前份未提交，已暂停等待处理', 'warning')
-            pausedRef.current = true
-            setIsPaused(true)
-            await new Promise(r => setTimeout(r, 300))
-            continue
-          }
-          if (!runningRef.current) {
-            addLog('已停止批改，当前份未提交', 'warning')
-            break
-          }
-        } else if (gradingMode === 'trial') {
-          addLog('试改模式: 等待教师确认...', 'warning')
-          setWaitingConfirm(true)
-          submitScore = await handleCorrection(finalScore)
-          setWaitingConfirm(false)
-          if (!runningRef.current) {
-            addLog('已停止批改，当前份未提交', 'warning')
-            break
-          }
-        } else if (gradingMode === 'unattended') {
-          // 无人值守仅在「已确认无需人工复核」时才允许自动提交；
-          // 需要复核的分数在上面 requiresHumanReview 分支已被拦截。
-          await new Promise(r => setTimeout(r, 1000))
-        }
-
-        // 提交前的最后可取消点（修复 BUG-EXE-003）：
-        // 暂停/停止无法中断已发出的 AI 调用，因此在真正写分提交前再校验一次，
-        // 已暂停/停止则丢弃本次结果、不提交，避免"想暂停但分数已提交"。
-        if (!runningRef.current) {
-          addLog('已停止批改，当前份结果已丢弃、未提交', 'warning')
-          break
-        }
-        if (pausedRef.current) {
-          addLog('已暂停，当前份结果未提交；恢复后将重新处理该份', 'warning')
-          continue
-        }
-
-        // 6. 输入分数并提交
-        addLog(`输入分数: ${submitScore}分`, 'info', true)
-
-        // 点击分数输入框
-        const clickResult1 = await gradingBotProxy.clickAt(currentConfig.scoreInput.x, currentConfig.scoreInput.y)
-        if (clickResult1 && typeof clickResult1 === 'object' && 'error' in clickResult1) {
-          const reason = `点击失败: ${translateError((clickResult1 as any).error)}`
-          addLog(reason, 'error')
-          updateStats((prev) => ({ failed: prev.failed + 1 }))
-          noteLoopFailure(reason)
-          await new Promise(r => setTimeout(r, 2000))
-          continue
-        }
-        await new Promise(r => setTimeout(r, 200))
-        
-        // 输入分数
-        const typeResult = await gradingBotProxy.typeAt(currentConfig.scoreInput.x, currentConfig.scoreInput.y, submitScore.toString())
-        if (typeResult && typeof typeResult === 'object' && 'error' in typeResult) {
-          const reason = `输入失败: ${translateError((typeResult as any).error)}`
-          addLog(reason, 'error')
-          updateStats((prev) => ({ failed: prev.failed + 1 }))
-          noteLoopFailure(reason)
-          await new Promise(r => setTimeout(r, 2000))
-          continue
-        }
-        await new Promise(r => setTimeout(r, 300))
-        
-        // 点击提交按钮
-        addLog('点击提交按钮...', 'info', true)
-        const clickResult2 = await gradingBotProxy.clickAt(currentConfig.submitButton.x, currentConfig.submitButton.y)
-        // 阻断-03：提交结果判定。此前只检查 { error }，clickAt 返回 false（页面失效/点击失败）
-        // 时会落到下面的"已提交"分支，把未落库的分数记成 completed，导致静默漏卷。
-        // 改为显式白名单：只有平台确认成功（true / { success:true }）才记 completed。
-        if (!isSubmitAcknowledged(clickResult2)) {
-          const platformError =
-            clickResult2 && typeof clickResult2 === 'object' && 'error' in clickResult2
-              ? translateError(String((clickResult2 as any).error))
-              : clickResult2 === false
-                ? '平台未确认（点击/提交返回 false）'
-                : '平台未返回成功确认'
-          const reason = `提交失败: ${submitScore}分 未被平台确认（${platformError}）`
-          addLog(reason, 'error')
-          updateStats((prev) => ({ failed: prev.failed + 1 }))
-          // 标记本份需人工复核：不记 completed、不写"已批改"记录、不进入下一份
+          const finalScore = gradeResult.score
+          const maxScore = currentStandard?.totalScore || 10
+          const scorePercent = Math.round((finalScore / maxScore) * 100)
+          updateStats({ currentScore: finalScore })
+          setAiComment(gradeResult.comment)
+          // 存储本份的评分分析，供界面展示"为什么打这个分"
           setAiAnalysis({
             breakdown: gradeResult.rubricBreakdown || [],
             errorTags: gradeResult.errorTags || [],
             reasoning: gradeResult.reasoning || '',
-            needsHumanReview: true,
+            needsHumanReview: gradeResult.needsHumanReview === true,
           })
-          addLog('当前份提交未成功，已暂停等待人工核对（不会计入已批改）', 'warning')
-          toast.error(`提交失败：${submitScore}分 未落库，已暂停，请人工核对`)
-          playError()
-          pausedRef.current = true
-          setIsPaused(true)
-          await new Promise(r => setTimeout(r, 1500))
+          // 每份试卷的核心结果行（精简模式下也保留）
+          addLog(`第 ${consecutiveCount + 1} 份 → ${finalScore}分 / ${maxScore}分 (${scorePercent}%) ${gradingPath === 'vision' ? '[图像直评]' : '[OCR兜底]'}`, 'success')
+
+          // 5. 根据模式处理
+          let submitScore = finalScore
+
+          // 显式白名单（阻断-02）：只有「已确认无需人工复核」的判分结果才允许进入自动提交路径。
+          // needsHumanReview === true 表示本次分数来自降级出口（解析失败 / 本地兜底 / 模型明确标注），
+          // 绝不能用占位分数冒充 AI 判分自动上屏——无论普通 / 试改 / 无人值守模式，一律停在人工复核。
+          const requiresHumanReview = gradeResult.needsHumanReview === true
+
+          if (requiresHumanReview) {
+            const modeLabel = gradingMode === 'normal' ? '普通' : gradingMode === 'trial' ? '试改' : '无人值守'
+            addLog(`${modeLabel}模式：本次判分未由模型可靠完成（需人工复核），暂停自动提交，请教师确认`, 'warning')
+            toast.error('本次判分需人工复核，已暂停自动提交')
+            setWaitingConfirm(true)
+            submitScore = await handleCorrection(finalScore)
+            setWaitingConfirm(false)
+if (!useGradingStore.getState().isRunning) {
+              addLog('已停止批改，当前份未提交', 'warning')
+              break
+            }
+          } else if (gradingMode === 'normal') {
+            addLog('普通模式: 5秒后自动提交...', 'info', true)
+            const shouldSubmit = await startCountdown(5)
+            if (!shouldSubmit) {
+              // 修复 BUG-EXE-004：取消倒计时原为"静默放弃当前份并继续下一份"，
+              // 改为暂停等待人工决策，当前份不提交、不跳过。
+              addLog('已取消自动提交，当前份未提交，已暂停等待处理', 'warning')
+              setIsPaused(true)
+              await new Promise(r => setTimeout(r, 300))
+              continue
+            }
+if (!useGradingStore.getState().isRunning) {
+              addLog('已停止批改，当前份未提交', 'warning')
+              break
+            }
+          } else if (gradingMode === 'trial') {
+            addLog('试改模式: 等待教师确认...', 'warning')
+            setWaitingConfirm(true)
+            submitScore = await handleCorrection(finalScore)
+            setWaitingConfirm(false)
+if (!useGradingStore.getState().isRunning) {
+              addLog('已停止批改，当前份未提交', 'warning')
+              break
+            }
+          } else if (gradingMode === 'unattended') {
+            // 无人值守仅在「已确认无需人工复核」时才允许自动提交；
+            // 需要复核的分数在上面 requiresHumanReview 分支已被拦截。
+            await new Promise(r => setTimeout(r, 1000))
+          }
+
+          // 提交前的最后可取消点（修复 BUG-EXE-003）：
+          // 暂停/停止无法中断已发出的 AI 调用，因此在真正写分提交前再校验一次，
+          // 已暂停/停止则丢弃本次结果、不提交，避免"想暂停但分数已提交"。
+if (!useGradingStore.getState().isRunning) {
+            addLog('已停止批改，当前份结果已丢弃、未提交', 'warning')
+            break
+          }
+if (useGradingStore.getState().isPaused) {
+            addLog('已暂停，当前份结果未提交；恢复后将重新处理该份', 'warning')
+            continue
+          }
+
+          // 6. 输入分数并提交
+          addLog(`输入分数: ${submitScore}分`, 'info', true)
+
+          // 点击分数输入框
+          // 显式白名单（P0 根因）：只有 `=== true` 才算成功。旧实现只检查 `{ error }`，
+          // 于是坐标落在视口外时 `clickAt` 返回的 `false` 被静默忽略——分数没进输入框，
+          // 程序却继续走去「点击提交 → 记 completed」，这就是"分数没填进智学网输入框"的静默错分。
+          const clickResult1 = await gradingBotProxy.clickAt(currentConfig.scoreInput.x, currentConfig.scoreInput.y)
+          if (clickResult1 !== true) {
+            const reason = `点击分数输入框失败: ${describeCoordinateActionFailure(clickResult1)}`
+            addLog(reason, 'error')
+            updateStats((prev) => ({ failed: prev.failed + 1 }))
+            noteLoopFailure(reason)
+            setAiAnalysis({
+              breakdown: gradeResult.rubricBreakdown || [],
+              errorTags: gradeResult.errorTags || [],
+              reasoning: gradeResult.reasoning || '',
+              needsHumanReview: true,
+            })
+            addLog('当前份分数未输入，已暂停等待人工核对（不会计入已批改）', 'warning')
+            toast.error('分数输入框未点中，已暂停，请人工核对')
+            runSideEffect('播放提示音', () => playError())
+            setIsPaused(true)
+            await new Promise(r => setTimeout(r, 1500))
+            continue
+          }
+          await new Promise(r => setTimeout(r, 200))
+        
+          // 输入分数
+          // 显式白名单（P0 根因）：`typeAt` 失败（坐标越界 / 未聚焦输入框 / 回读不一致）
+          // 必须判定为失败并暂停，绝不带着"分数其实没写进去"的状态去提交。
+        const typeResult = await gradingBotProxy.typeAt(currentConfig.scoreInput.x, currentConfig.scoreInput.y, submitScore.toString())
+        if (typeResult !== true) {
+            const reason = `输入分数失败: ${describeCoordinateActionFailure(typeResult)}`
+            addLog(reason, 'error')
+            updateStats((prev) => ({ failed: prev.failed + 1 }))
+            noteLoopFailure(reason)
+            setAiAnalysis({
+              breakdown: gradeResult.rubricBreakdown || [],
+              errorTags: gradeResult.errorTags || [],
+              reasoning: gradeResult.reasoning || '',
+              needsHumanReview: true,
+            })
+            addLog('当前份分数未写入输入框，已暂停等待人工核对（不会计入已批改）', 'warning')
+            toast.error(`${submitScore}分 未写入输入框，已暂停，请人工核对`)
+            runSideEffect('播放提示音', () => playError())
+            setIsPaused(true)
+            await new Promise(r => setTimeout(r, 1500))
+            continue
+          }
+          await new Promise(r => setTimeout(r, 300))
+        
+          // 点击提交按钮
+          addLog('点击提交按钮...', 'info', true)
+          const clickResult2 = await gradingBotProxy.clickAt(currentConfig.submitButton.x, currentConfig.submitButton.y)
+          // 阻断-03：提交结果判定。只有显式成功（true / { success:true }）才记 completed，
+          // 否则会落到下面的"已提交"分支，把未落库的分数记成已批改，导致静默漏卷。
+          // 注意：clickAt 的类型是 `true | { error }`（CoordinateActionResult），
+          // 旧代码里的 `=== false` 分支已不可能出现，会在编译期报 TS2367，因此统一走
+          // describeCoordinateActionFailure 生成可诊断文案。
+          if (!isSubmitAcknowledged(clickResult2)) {
+            const platformError = describeCoordinateActionFailure(clickResult2)
+            const reason = `提交失败: ${submitScore}分 未被平台确认（${platformError}）`
+            addLog(reason, 'error')
+            updateStats((prev) => ({ failed: prev.failed + 1 }))
+            // 标记本份需人工复核：不计入 completed、不进入下一份
+            setAiAnalysis({
+              breakdown: gradeResult.rubricBreakdown || [],
+              errorTags: gradeResult.errorTags || [],
+              reasoning: gradeResult.reasoning || '',
+              needsHumanReview: true,
+            })
+            // 实时保存（关键）：分数没落库不代表这份白改了——判分结果、作答原文、
+            // 打分依据必须当场记下来（status=pending → 「记录」页显示"待处理"），
+            // 否则老师要凭记忆回填，这就是"试改的卷子分数和答案没有被保存"。
+            savePaperRecord({
+              score: submitScore,
+              aiScore: finalScore,
+              comment: gradeResult.comment || '',
+              reasoning: gradeResult.reasoning || '',
+              answerText: gradeResult.transcript || ocrTextForRecord,
+              answerImage: image || '',
+              maxScore,
+              isBlank: gradingPath === 'ocr' && !ocrTextForRecord.trim(),
+              status: 'pending',
+            })
+            addLog('当前份提交未成功，已记入「记录」页（待处理）并暂停等待人工核对', 'warning')
+            toast.error(`提交失败：${submitScore}分 未落库（已存入记录待处理），已暂停，请人工核对`)
+            runSideEffect('播放提示音', () => playError())
+            setIsPaused(true)
+            await new Promise(r => setTimeout(r, 1500))
+            continue
+          }
+        
+          addLog(`已提交 ${submitScore}分`, 'success', true)
+          updateStats((prev) => ({ completed: prev.completed + 1 }))
+        
+          // 保存批改记录（实时保存，非关键副作用：失败只降级告警，绝不打断批改循环）
+          // 作答原文只允许取「本份」的数据：gradeResult.transcript（图像直评的逐字转录）
+          // 或 ocrTextForRecord（本份 OCR 结果）。**不能**回退到 recognizedText ——
+          // 它是跨份共享的组件状态（闭包捕获的还是启动那次渲染的值），会把上一份的答案
+          // 记到这一份上，这正是"记录里答案不对/为空"的来源之一。
+          const answerTextForRecord = gradeResult.transcript || ocrTextForRecord
+          if (!answerTextForRecord.trim()) {
+            addLog('本份未取得作答原文（模型未返回转录且未走 OCR），记录中答题内容为空', 'warning')
+          }
+          savePaperRecord({
+            score: submitScore,
+            aiScore: finalScore,
+            comment: gradeResult.comment || '',
+            reasoning: gradeResult.reasoning || '',
+            answerText: answerTextForRecord,
+            answerImage: image || '',
+            maxScore,
+            isBlank: gradingPath === 'ocr' && !ocrTextForRecord.trim(),
+            status: 'completed',
+          })
+        
+          consecutiveCount++
+          consecutiveFailures = 0
+          runSideEffect('播放提示音', () => playClick())
+
+          // 更新进度持久化（非关键副作用：同样不允许打断批改）
+          runSideEffect('保存批改进度', () => gradingStore.updateGradingProgress(consecutiveCount))
+
+          // 7. 提交后等待平台完成「提交 → 翻页 → 下一份图像加载」。
+          // 此前这里是 1500ms 固定等待 + 一段无用的预加载截图（该截图从未被使用，
+          // 且时机在翻页完成之前，会拍到切换中的页面）——两处都已按操作节奏要求修正。
+          await new Promise((r) => setTimeout(r, SUBMIT_SETTLE_DELAY_MS))
+        } catch (paperError: any) {
+          // 本份异常只记一次失败并继续；连续失败达阈值会自动暂停，而不是整场结束。
+          // 只有浏览器 / 主进程确实不可用（致命错误）才结束会话，且用专门的文案说明。
+          const rawPaperError = String(paperError?.message || paperError || '未知错误')
+          try {
+            addLogToStore(`本份处理异常，已跳过本份并继续: ${describeGradingError(rawPaperError)}`, 'error')
+            addLogToStore(`原始错误: ${rawPaperError}`, 'error')
+          } catch (logError) {
+            console.error('[单份隔离] 日志写入失败:', rawPaperError, logError)
+          }
+          runSideEffect('统计失败次数', () => updateStats((prev) => ({ failed: prev.failed + 1 })))
+          if (isFatalGradingError(rawPaperError)) {
+            fatalError = rawPaperError
+            break
+          }
+          noteLoopFailure(`本份处理异常: ${describeGradingError(rawPaperError)}`)
+          await new Promise((r) => setTimeout(r, 2000))
           continue
         }
-        
-        addLog(`已提交 ${submitScore}分`, 'success', true)
-        updateStats((prev) => ({ completed: prev.completed + 1 }))
-        
-        // 保存批改记录
-        addRecord({
-          studentId: `student_${Date.now()}`,
-          studentName: `学生${Date.now() % 10000}`,
-          questionNumber: currentStandard?.questionNumber || currentStandard?.name || '未知题目',
-          standardId: currentStandard?.id || '',
-          standardName: currentStandard?.name || '',
-          answerImage: image || '',
-          // 图像直评时优先用模型逐字转录的作答原文（此前该路径记录里答题内容为空）
-          ocrText: gradeResult.transcript || ocrTextForRecord || recognizedText,
-          score: submitScore,
-          maxScore: maxScore,
-          aiScore: finalScore,
-          aiComment: gradeResult.comment || '',
-          reasoning: gradeResult.reasoning || '',
-          evaluationMode: 'ai',
-          status: 'completed',
-          isBlank: gradingPath === 'ocr' && !ocrTextForRecord.trim(),
-        })
-        
-        consecutiveCount++
-        consecutiveFailures = 0
-        playClick()
-
-        // 更新进度持久化
-        gradingStore.updateGradingProgress(consecutiveCount)
-
-        // 7. 提交后等待平台完成「提交 → 翻页 → 下一份图像加载」。
-        // 此前这里是 1500ms 固定等待 + 一段无用的预加载截图（该截图从未被使用，
-        // 且时机在翻页完成之前，会拍到切换中的页面）——两处都已按操作节奏要求修正。
-        await new Promise((r) => setTimeout(r, SUBMIT_SETTLE_DELAY_MS))
       }
 
-      addLog(`批改完成！共${consecutiveCount}份`, 'success')
-      playSuccess()
-      toast.success(`批改完成！共${consecutiveCount}份`)
+      if (fatalError) {
+        // 浏览器 / 页面已失效：这是「环境结束」，不是用户可修复的"操作失败"。
+        // 单独给出可执行提示，避免和兜底文案"操作失败，请查看日志或重新尝试"混在一起。
+        const friendly = translateError(fatalError)
+        try {
+          addLogToStore(`批改会话已结束: ${friendly}`, 'error')
+          addLogToStore(`原始错误: ${fatalError}`, 'error')
+        } catch (logError) {
+          console.error('[批改结束] 日志写入失败:', fatalError, logError)
+        }
+        runSideEffect('播放提示音', () => playError())
+        toast.error(`批改已结束（本次完成 ${consecutiveCount} 份）: ${friendly}`)
+      } else if (consecutiveCount === 0) {
+        // 一份都没完成：要么一上来就失败，要么老师在开跑后立刻点了「停止」。
+        // 前者需要提示排查，后者只是正常取消——不能把"我主动停的"渲染成错误。
+        if (consecutiveFailures > 0) {
+          addLog('本次会话未完成任何一份批改，请检查坐标配置与页面状态', 'error')
+          runSideEffect('播放提示音', () => playError())
+          toast.error('本次未完成任何一份批改，请查看日志')
+        } else {
+          addLog('批改会话已取消，未处理任何一份', 'info')
+          runSideEffect('播放提示音', () => playClick())
+        }
+      } else {
+        // 正常收尾。**这是关键语义修正**：无论是"试改模式只改了一份就点停止"，
+        // 还是普通模式跑完想跑的量，都属于预期结束，绝不能报"批改中断"。
+        // 旧实现把所有非正常退出都渲染成中断，让皮老板误判成系统故障。
+        addLog(`批改会话结束：本次共完成 ${consecutiveCount} 份`, 'success')
+        runSideEffect('播放提示音', () => playSuccess())
+        toast.success(`批改完成！共${consecutiveCount}份`)
+      }
     } catch (error: any) {
       const errMsg = String(error?.message || error || '未知错误')
-      addLog(`批改中断: ${translateError(errMsg)}`, 'error')
-      playError()
-      toast.error(`批改中断: ${translateError(errMsg)}`)
+if (!useGradingStore.getState().isRunning) {
+        // 老师已经点过「停止」，异常来自停止前在途的调用：属于预期结束，不是中断。
+        const doneCount = useGradingStore.getState().stats.completed
+        try {
+          addLogToStore(
+            `批改已停止（本次共完成 ${doneCount} 份）；停止过程中出现一次可忽略的异常：${errMsg}`,
+            'warning'
+          )
+        } catch (logError) {
+          console.error('[批改停止] 日志写入失败:', errMsg, logError)
+        }
+        toast.success(`批改已停止，本次共完成 ${doneCount} 份`)
+        return
+      }
+      const friendly = translateError(errMsg)
+      // 可诊断性（阻断-05）：界面引导用户"查看日志"，日志里就必须留下**原始错误**。
+      // 旧实现只写翻译后的兜底文案，真实原因（QuotaExceededError）被彻底吞掉，
+      // 用户和开发者都无从下手——本次 bug 的真正教训就在这里。
+      try {
+        addLogToStore(`批改中断: ${friendly}`, 'error')
+        addLogToStore(`原始错误: ${errMsg}`, 'error')
+        if (isStorageQuotaError(errMsg)) {
+          addLogToStore(
+            '存储空间不足：请在「记录」页清理历史记录后重试；本次已完成的分数不受影响',
+            'warning'
+          )
+        }
+      } catch (logError) {
+        // 配额耗尽时 addLog 自身也可能抛错，绝不能让它把下面的 toast 一起吞掉
+        console.error('[批改中断] 日志写入失败:', friendly, '|', errMsg, logError)
+      }
+      runSideEffect('播放提示音', () => playError())
+      toast.error(`批改中断: ${friendly}`)
     } finally {
-      runningRef.current = false
-      pausedRef.current = false
       cancelCountdown()
       setIsRunning(false)
       setIsPaused(false)
       setWaitingConfirm(false)
       setShowCorrection(false)
       // 标记批改进度已完成
-      gradingStore.finishGradingProgress()
+      runSideEffect('保存批改进度', () => gradingStore.finishGradingProgress())
     }
   }
 
   const handlePause = () => {
     playClick()
-    const newPausedState = !pausedRef.current
-    pausedRef.current = newPausedState
+const newPausedState = !useGradingStore.getState().isPaused
     setIsPaused(newPausedState)
     
     if (newPausedState) {
@@ -982,9 +1398,13 @@ export default function CoordinateGradingPage() {
 
   const handleStop = () => {
     playClick()
-    runningRef.current = false
-    pausedRef.current = false
     cancelCountdown()
+    // 关键（死锁修复）：普通 / 试改模式会停在 `await handleCorrection()` 等教师确认。
+    // 若不释放这个 Promise，循环会永远悬在那里——既走不到 break 收尾，也执行不到 finally；
+    // 教师此时再点「开始批改」，就会出现"旧循环还挂着 + 新循环已启动"的双循环。
+// 释放它，循环会在后续的 `if (!isRunning) break` 处干净收尾，且**不会**提交本份分数。
+    confirmResolveRef.current?.(useGradingStore.getState().stats.currentScore || 0)
+    confirmResolveRef.current = null
     setIsRunning(false)
     setIsPaused(false)
     setWaitingConfirm(false)
@@ -1049,7 +1469,7 @@ export default function CoordinateGradingPage() {
     <div className="coordinate-grading-page">
       <div className="page-header">
         <h1>
-          <Target size={24} />
+          <Target size={20} />
           试卷批改
         </h1>
         <p>坐标驱动批改 · 支持手动框选或大模型自动识别区域 · 自动评分与提交</p>
@@ -1380,38 +1800,6 @@ export default function CoordinateGradingPage() {
             <div className="current-score">
               <span>当前得分</span>
               <strong>{stats.currentScore}</strong>
-            </div>
-          )}
-
-          {/* 进度条 */}
-          {isRunning && stats.total > 0 && (
-            <div className="progress-bar-container">
-              <div className="progress-header">
-                <span>批改进度</span>
-                <span className="progress-percent">
-                  {Math.round((stats.completed / stats.total) * 100)}%
-                </span>
-              </div>
-              <div className="progress-track">
-                <div 
-                  className="progress-fill" 
-                  style={{ width: `${Math.round((stats.completed / stats.total) * 100)}%` }}
-                />
-              </div>
-              <div className="progress-legend">
-                <div className="legend-item">
-                  <span className="dot success" />
-                  <span>成功 {stats.completed}</span>
-                </div>
-                <div className="legend-item">
-                  <span className="dot warning" />
-                  <span>空白 {stats.blank}</span>
-                </div>
-                <div className="legend-item">
-                  <span className="dot error" />
-                  <span>失败 {stats.failed}</span>
-                </div>
-              </div>
             </div>
           )}
 

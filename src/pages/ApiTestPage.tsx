@@ -333,6 +333,9 @@ export default function ApiTestPage() {
         // 修复：此前硬编码 200，思考模式会先用思维链耗尽输出额度，导致正文为空
         // （表现为只回 "(测试响应)" 或评分没有依据）
         maxTokens: settings.maxTokens || 4000,
+        // 修复：透传思考开关，避免"界面上关掉思考、服务端仍默认开启"导致正文为空
+        thinkingEnabled: activeProvider.thinkingEnabled,
+        reasoningEffort: activeProvider.reasoningEffort,
       })
 
       const elapsed = Date.now() - startTime

@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { v4 as uuidv4 } from 'uuid'
 import type { GradingStandard, PresetSet } from '@/types'
+import { createResilientPersistStorage } from './resilientStorage'
 
 interface StandardsState {
   standards: GradingStandard[]
@@ -25,6 +26,49 @@ interface StandardsState {
   setCurrentStandard: (id: string | null) => void
   getCurrentStandard: () => GradingStandard | null
 }
+
+/**
+ * 「瘦身重试」：配额写失败时剥离示例答案里的 base64 图片再写一次。
+ *
+ * 只在**真正写失败时**触发 —— 正常路径仍然完整保留 `examples[].image`，
+ * 因此不会改变持久化字段集合；代价是配额彻底满时宁可丢示例图，也不丢整套评分标准。
+ */
+function shrinkStandardsPayload(rawJson: string): string | null {
+  try {
+    const payload = JSON.parse(rawJson) as { state?: Partial<StandardsState> }
+    const standards = payload?.state?.standards
+    if (!Array.isArray(standards)) return null
+
+    let touched = false
+    payload.state!.standards = standards.map((standard) => {
+      if (!standard || !Array.isArray(standard.examples)) return standard
+      let exampleTouched = false
+      const examples = standard.examples.map((example) => {
+        if (example && typeof example === 'object' && example.image) {
+          exampleTouched = true
+          return { ...example, image: '' }
+        }
+        return example
+      })
+      if (!exampleTouched) return standard
+      touched = true
+      return { ...standard, examples }
+    })
+
+    return touched ? JSON.stringify(payload) : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 容错存储（8.4）：评分标准里含示例答案图片（base64），
+ * 配额满时 `setItem` 会同步抛错并把保存动作整个打断。接上容错存储后只降级、不抛错。
+ */
+const { storage: standardsStorage } = createResilientPersistStorage<StandardsState>({
+  label: 'standardsStore',
+  shrink: shrinkStandardsPayload,
+})
 
 export const useStandardsStore = create<StandardsState>()(
   persist(
@@ -135,6 +179,10 @@ export const useStandardsStore = create<StandardsState>()(
     }),
     {
       name: 'grading-standards',
+      // 容错存储：写入失败（配额满）只降级 + 记错误，绝不把异常抛给调用方
+      storage: standardsStorage,
+      // 持久化字段与旧版本完全一致（身份映射）；图片仅在写失败时由 shrink 兜底剥离
+      partialize: (state): StandardsState => ({ ...state }),
     }
   )
 )

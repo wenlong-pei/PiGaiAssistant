@@ -96,7 +96,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateBotSettings: (settings: any): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('bot:updateBotSettings', settings),
   // API 测试（由主进程代理，渲染进程不接触 API Key）
-  testApi: (params: { providerId: string; endpoint: string; model: string; prompt: string; temperature: number; maxTokens: number }) =>
+  testApi: (params: { providerId: string; endpoint: string; model: string; prompt: string; temperature: number; maxTokens: number; thinkingEnabled?: boolean; reasoningEffort?: 'low' | 'high' | 'max' }) =>
     ipcRenderer.invoke('bot:test-api', params),
   // 图像直评（首选路径）：传截图 + 评分标准，返回 { ok, result?, reason? }
   gradeImage: (imageDataUrl: string, standard: any, correctionHistory?: any[]) =>
@@ -205,6 +205,8 @@ export interface ElectronAPI {
     prompt: string
     temperature: number
     maxTokens: number
+    thinkingEnabled?: boolean
+    reasoningEffort?: 'low' | 'high' | 'max'
   }) => Promise<{ success?: boolean; content?: string; error?: string; time?: number }>
   getBotSettings: () => Promise<any>
   syncEdgeProfile: () => Promise<{ success: boolean; message: string }>

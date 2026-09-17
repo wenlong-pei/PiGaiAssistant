@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { GradingMode } from '@/types'
+import { createResilientPersistStorage } from './resilientStorage'
 
 /**
  * 日志级别枚举
@@ -165,6 +166,31 @@ const defaultProgress = {
   gradingMode: 'normal' as GradingMode,
   lastTimestamp: 0,
 }
+
+/**
+ * 持久化载荷形状（`partialize` 的返回类型，供 `storage` 泛型对齐）。
+ * 只包含需要落盘的字段：运行时状态（isRunning / waitingConfirm / previewImage ...）
+ * 一律不持久化。
+ */
+interface PersistedGradingState {
+  url: string
+  gradingMode: GradingMode
+  stats: GradingState['stats']
+  logs: LogEntry[]
+  logFilterLevel: LogLevel | 'all'
+  logCompact: boolean
+  gradingProgress: GradingState['gradingProgress']
+  correctionHistory: GradingState['correctionHistory']
+}
+
+/**
+ * 容错存储（8.5）：批改过程中每次 addLog / updateGradingProgress 都会触发一次
+ * `localStorage.setItem`；配额被批改记录撑满时它**同步抛错**，异常会冒泡进批改主循环的
+ * catch 被渲染成「批改中断」假故障。接上容错存储后，写不进去只会降级 + 记错误，绝不打断批改。
+ */
+const { storage: gradingStorage } = createResilientPersistStorage<PersistedGradingState>({
+  label: 'gradingStore',
+})
 
 export const useGradingStore = create<GradingState>()(
   persist(
@@ -467,6 +493,8 @@ export const useGradingStore = create<GradingState>()(
     }),
     {
       name: 'grading-session',
+      // 容错存储：写入失败（配额满）只降级 + 记错误，绝不抛回批改主循环
+      storage: gradingStorage,
       // 恢复时重置浏览器连接状态（应用重启后浏览器实例已丢失）
       onRehydrateStorage: () => (state) => {
         if (state) {
@@ -476,7 +504,7 @@ export const useGradingStore = create<GradingState>()(
         }
       },
       // 只持久化这些字段，运行时不持久化
-      partialize: (state) => ({
+      partialize: (state): PersistedGradingState => ({
         url: state.url,
         gradingMode: state.gradingMode,
         stats: state.stats,

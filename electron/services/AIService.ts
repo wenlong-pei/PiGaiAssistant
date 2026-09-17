@@ -8,6 +8,7 @@ import { LogService } from './LogService'
 import { StorageService } from './StorageService'
 import { isString, isObject, isNumber, isArray } from '../utils/validators'
 import { GRADING, AI, RETRY, TIMEOUT, STORAGE_KEYS } from '../utils/constants'
+import { buildThinkingParams, explainEmptyContent } from '../utils/thinkingParams'
 
 // ============ 类型定义 ============
 
@@ -305,7 +306,7 @@ export class AIService {
             // 改进方案第一层：评分锁温度=0，保证同卷同分、可复现、可审计
             temperature: AI.GRADING_TEMPERATURE,
             max_tokens: this.settings.maxTokens,
-            ...this.buildThinkingParams(activeProvider),
+            ...buildThinkingParams(activeProvider),
             ...(supportsJsonFormat ? { response_format: { type: 'json_object' as const } } : {}),
           },
           {
@@ -343,7 +344,7 @@ export class AIService {
     }
 
     // 解析评分结果
-    return this.parseGradingResult(response, standard, text)
+    return this.parseGradingResult(response, standard, text, activeProvider.thinkingEnabled)
   }
 
   /**
@@ -416,7 +417,7 @@ export class AIService {
             // 与文本路径一致：锁温度 0，保证同卷同分
             temperature: AI.GRADING_TEMPERATURE,
             max_tokens: this.settings.maxTokens,
-            ...this.buildThinkingParams(activeProvider),
+            ...buildThinkingParams(activeProvider),
             ...(supportsJsonFormat ? { response_format: { type: 'json_object' as const } } : {}),
           },
           {
@@ -446,7 +447,7 @@ export class AIService {
       return { ok: false, reason: `图像识别请求失败：${msg}` }
     }
 
-    const result = this.parseGradingResult(response, standard, '')
+    const result = this.parseGradingResult(response, standard, '', activeProvider.thinkingEnabled)
 
     // parseGradingResult 在 JSON 无法解析时会打上该标签，据此判定"结果不可解析"。
     // 修复：此前统一文案为"非合法 JSON"，掩盖了真实原因（空正文 / 缺 score 字段等），
@@ -544,7 +545,7 @@ ${recognizedText || '（无文本）'}
             // 分析类任务不锁温度 0，但保持较低值保证稳定
             temperature: AI.DEFAULT_TEMPERATURE,
             max_tokens: this.settings.maxTokens,
-            ...this.buildThinkingParams(activeProvider),
+            ...buildThinkingParams(activeProvider),
             ...(supportsJsonFormat ? { response_format: { type: 'json_object' as const } } : {}),
           },
           {
@@ -700,32 +701,6 @@ ${recognizedText || '（无文本）'}
   }
 
   // ============ 私有方法 ============
-
-  /**
-   * 构建思考模式相关参数（DeepSeek 专用扩展参数）
-   * 参考官方文档：thinking 为顶层对象参数，reasoning_effort 为顶层字符串参数（low/high/max）。
-   * 注意：开启思考模式后，temperature / top_p / presence_penalty / frequency_penalty
-   * 会被模型忽略（不报错但无效），因此"同卷同分"依赖 temperature=0 的场景需关闭思考模式。
-   * 未配置时只补 stream:false，避免把 DeepSeek 专有参数发给其他厂商导致 400。
-   */
-  private buildThinkingParams(provider?: {
-    thinkingEnabled?: boolean
-    reasoningEffort?: 'low' | 'high' | 'max'
-  }): Record<string, unknown> {
-    const params: Record<string, unknown> = { stream: false }
-
-    if (provider?.thinkingEnabled === true) {
-      params.thinking = { type: 'enabled' }
-    } else if (provider?.thinkingEnabled === false) {
-      params.thinking = { type: 'disabled' }
-    }
-
-    if (provider?.reasoningEffort) {
-      params.reasoning_effort = provider.reasoningEffort
-    }
-
-    return params
-  }
 
   /**
    * 去除首尾空白与末尾斜杠
@@ -914,7 +889,8 @@ ${VISION_OUTPUT_INSTRUCTION}`
   private parseGradingResult(
     response: any,
     standard: GradingStandard,
-    text: string
+    text: string,
+    thinkingEnabled?: boolean
   ): GradeResult {
     const choice = response.data?.choices?.[0]
     const content = choice?.message?.content?.trim() || '{}'
@@ -928,10 +904,10 @@ ${VISION_OUTPUT_INSTRUCTION}`
     // 修复：正文为空时必须判定为解析失败并转人工，
     // 不能落进 parsed={} 分支被静默按本地关键词评分（那会给出无依据的分数）。
     if (!choice?.message?.content || !String(choice.message.content).trim()) {
-      const hint = reasoningContent
-        ? '（模型只返回了思维链、正文为空：通常是 max_tokens 被思考模式耗尽，请调大 max_tokens 或关闭思考模式）'
-        : '（模型返回内容为空）'
-      return this.buildUnparsableResult(`AI 未返回评分内容${hint}`, reasoningContent, '')
+      // 文案与 bot:test-api 共用同一实现（explainEmptyContent）：
+      // 用户已关闭思考却仍收到思维链时，不再叫他去"关闭思考模式"。
+      const hint = explainEmptyContent(reasoningContent, thinkingEnabled)
+      return this.buildUnparsableResult(`AI 未返回评分内容（${hint}）`, reasoningContent, '')
     }
 
     const unparsable = (reason: string): GradeResult => {
