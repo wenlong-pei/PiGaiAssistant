@@ -75,11 +75,29 @@ interface ElectronAPI {
     error?: string
   }>
   update: {
-    check: () => Promise<any>
-    download: () => Promise<boolean>
-    install: () => Promise<void>
-    getStatus: () => Promise<any>
+    check: () => Promise<{
+      ok: boolean
+      updateAvailable: boolean
+      currentVersion: string
+      version?: string
+      error?: string
+      reason?: 'dev' | 'up-to-date' | 'update-available' | 'in-progress' | 'failed'
+    }>
+    download: () => Promise<{ ok: boolean; error?: string }>
+    install: () => Promise<{ ok: boolean; error?: string }>
+    getStatus: () => Promise<{
+      status: 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'error'
+      progress: number
+      version?: string
+      releaseNotes?: string
+      error?: string
+      currentVersion: string
+      isPortable: boolean
+      manualDownloadUrl: string
+      updateFeed: string
+    }>
     setSkip: (skip: boolean) => Promise<void>
+    openDownloadPage: () => Promise<{ ok: boolean; error?: string }>
     onStateChanged: (callback: (state: any) => void) => () => void
     onAvailable: (callback: (info: any) => void) => () => void
     onDownloaded: (callback: (info: any) => void) => () => void

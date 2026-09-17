@@ -30,7 +30,7 @@ const VALID_CHANNELS: Record<string, string[]> = {
   // OCR 连接测试（主进程代理，渲染层不接触真实 Token）
   ocr: ['ocr:test-connection'],
   // 自动更新
-  update: ['update:check', 'update:download', 'update:install', 'update:status', 'update:set-skip'],
+  update: ['update:check', 'update:download', 'update:install', 'update:status', 'update:set-skip', 'update:open-download'],
   // 可监听的事件
   on: ['update:state-changed', 'update:available', 'update:downloaded', 'window:maximize-change'],
 }
@@ -143,6 +143,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     install: () => ipcRenderer.invoke('update:install'),
     getStatus: () => ipcRenderer.invoke('update:status'),
     setSkip: (skip: boolean) => ipcRenderer.invoke('update:set-skip', skip),
+    // 绿色版 / 自动更新失败时的兜底：打开 Release 页面手动下载
+    openDownloadPage: () => ipcRenderer.invoke('update:open-download'),
     onStateChanged: (callback: (state: any) => void) => {
       const handler = (_: any, state: any) => callback(state)
       ipcRenderer.on('update:state-changed', handler)
@@ -169,6 +171,14 @@ interface UpdateState {
   version?: string
   releaseNotes?: string
   error?: string
+  /** 当前运行版本 */
+  currentVersion: string
+  /** 绿色版：不能自动更新，只能手动下载 */
+  isPortable: boolean
+  /** 手动下载入口 */
+  manualDownloadUrl: string
+  /** 更新源仓库（排查"检查不到更新"时确认客户端在问谁） */
+  updateFeed: string
 }
 
 // TypeScript 类型声明
@@ -222,15 +232,31 @@ export interface ElectronAPI {
     error?: string
   }>
   update: {
-    check: () => Promise<any>
-    download: () => Promise<boolean>
-    install: () => Promise<void>
+    check: () => Promise<UpdateCheckResult>
+    download: () => Promise<UpdateActionResult>
+    install: () => Promise<UpdateActionResult>
     getStatus: () => Promise<UpdateState>
     setSkip: (skip: boolean) => Promise<void>
+    openDownloadPage: () => Promise<UpdateActionResult>
     onStateChanged: (callback: (state: UpdateState) => void) => () => void
     onAvailable: (callback: (info: any) => void) => () => void
     onDownloaded: (callback: (info: any) => void) => () => void
   }
+}
+
+/** 检查更新的结构化结果——必须能区分"已是最新"与"检查失败" */
+interface UpdateCheckResult {
+  ok: boolean
+  updateAvailable: boolean
+  currentVersion: string
+  version?: string
+  error?: string
+  reason?: 'dev' | 'up-to-date' | 'update-available' | 'in-progress' | 'failed'
+}
+
+interface UpdateActionResult {
+  ok: boolean
+  error?: string
 }
 
 declare global {

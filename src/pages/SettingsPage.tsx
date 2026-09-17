@@ -21,6 +21,7 @@ import {
   buildProviderId,
   guessPresetByProviderId,
 } from '@/utils/aiProviders'
+import UpdateChecker from '@/components/common/UpdateChecker'
 import './SettingsPage.scss'
 
 // ===========================================
@@ -1200,9 +1201,16 @@ function HelpSection() {
         <div className="help-card">
           <h4>关于</h4>
           <p><strong>皮老板智能阅卷工具</strong></p>
-          <p>版本：2.2.1</p>
+          {/* 修复：此前版本号硬编码为 2.2.1，早已与实际版本脱节，会误导用户报障 */}
+          <p>版本：{__APP_VERSION__}</p>
           <p>基于 Electron + React + TypeScript 构建</p>
         </div>
+      </div>
+
+      {/* 软件更新：此前 UpdateChecker 是孤儿组件，没有任何页面引用它，
+          导致客户端根本没有更新入口 —— 必须挂在这里才谈得上"能自动更新" */}
+      <div style={{ marginTop: '24px' }}>
+        <UpdateChecker />
       </div>
 
       <div style={{ marginTop: '24px', display: 'flex', gap: '12px' }}>

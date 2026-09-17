@@ -29,6 +29,9 @@ import { setupIPCHandlers } from './ipc'
 // 批改历史加密存储（PII 落盘）
 import { registerHistoryHandlers } from './historyStore'
 
+// 自动更新（启动检查 + 状态推送）
+import { getAutoUpdateService, stopAutoUpdateServiceIfStarted } from './autoUpdater'
+
 // ============ 全局变量 ============
 
 let mainWindow: BrowserWindow | null = null
@@ -240,7 +243,17 @@ app.whenReady().then(async () => {
 
   // OCR 连接测试 IPC（主进程代理，渲染层不接触真实 Token）
   registerOcrTestHandler()
-  
+
+  // 自动更新：绑定主窗口 + 启动"延迟首检 + 周期轮询"。
+  // 修复（静默失效）：此前没有任何地方调用 setMainWindow()，autoUpdater 的
+  // 状态推送分支长期不可达；且从未主动调用过检查更新——客户端永远不会自己发现新版本，
+  // 只能靠用户手动点「检查更新」。这两件事叠加，等于自动更新完全没在工作。
+  const autoUpdateService = getAutoUpdateService()
+  if (mainWindow) {
+    autoUpdateService.setMainWindow(mainWindow)
+  }
+  autoUpdateService.startAutoCheck()
+
   logger.info('应用已启动')
   
   // macOS 激活事件
@@ -252,6 +265,11 @@ app.whenReady().then(async () => {
 }).catch((error) => {
   console.error('应用启动失败:', error)
   app.quit()
+})
+
+// 退出前清理自动更新定时器
+app.on('will-quit', () => {
+  stopAutoUpdateServiceIfStarted()
 })
 
 // 所有窗口关闭时退出（Windows/Linux）

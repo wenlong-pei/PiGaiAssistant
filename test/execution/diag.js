@@ -18,7 +18,11 @@ async function launch() {
 ;(async () => {
   const browser = await launch()
   const page = await browser.newPage()
-  const url = 'file://D:/workbuddyDate/pigaizhushou/test/execution/mock-zhixue.html'
+  // 修复：此前硬编码了作者本机的绝对路径（D:/workbuddyDate/...），
+  // 换台机器/换目录就跑不了，也会把个人目录结构带进公开仓库。
+  // 改为相对本脚本定位。
+  const mockPath = path.join(__dirname, 'mock-zhixue.html')
+  const url = `file://${mockPath.replace(/\\/g, '/')}`
   await page.goto(url)
   await page.waitForFunction(() => window.__g)
   const info = await page.evaluate(() => ({
